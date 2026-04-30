@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
+import Sidebar from '@/components/Sidebar';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
 } from 'recharts';
 
 const SCORE_COLORS: Record<string, string> = {
@@ -24,108 +24,6 @@ const SCORE_LABELS: Record<string, string> = {
   closing_technique: 'Closing Technique',
 };
 
-const NAV_ITEMS = [
-  { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
-  { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
-  { emoji: '👥', label: 'Personas', id: 'personas', href: '/dashboard/personas' },
-  { emoji: '⭐', label: 'Reviews', id: 'reviews', href: '/dashboard/reviews' },
-  { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
-  { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
-];
-
-
-
-function ScoreRing({ score, size = 88 }: { score: number; size?: number }) {
-  const r = (size / 2) - 10;
-  const circ = 2 * Math.PI * r;
-  const dash = (score / 100) * circ;
-  const color = score >= 75 ? '#4ade80' : score >= 60 ? '#D4860A' : '#ef4444';
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={8} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={8}
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Sidebar({ active, onNav, supabase, user, profile, editingName, nameInput, setEditingName, setNameInput, setProfile }: { active: string; onNav: (id: string) => void; supabase: any; user: any; profile: any; editingName: boolean; nameInput: string; setEditingName: (v: boolean) => void; setNameInput: (v: string) => void; setProfile: any }) {
-  return (
-    <aside style={{ width: 220, background: '#13151F', minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '20px 0', borderRight: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-      <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#D4860A', letterSpacing: '0.05em' }}>TrainField AI</div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Sales Training OS</div>
-      </div>
-
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {NAV_ITEMS.map(item => (
-          <button
-            key={item.id}
-            onClick={() => { if (item.href) { window.location.href = item.href; } else { onNav(item.id); } }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 8, border: 'none', cursor: 'pointer', width: '100%',
-              background: active === item.id ? 'rgba(212,134,10,0.15)' : 'transparent',
-              color: active === item.id ? '#FAC765' : 'rgba(255,255,255,0.5)',
-              fontSize: 13, fontWeight: 500, textAlign: 'left', transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 16 }}>{item.emoji}</span>
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ padding: '12px', background: 'rgba(212,134,10,0.1)', borderRadius: 10, border: '1px solid rgba(212,134,10,0.2)', marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: '#D4860A', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Upgrade to Pro</div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', lineHeight: 1.5, marginBottom: 10 }}>Unlimited simulations, team dashboards & custom personas.</div>
-          <button style={{ width: '100%', padding: '8px', background: '#D4860A', border: 'none', borderRadius: 6, color: '#1A1208', fontSize: 12, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Upgrade</button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {editingName ? (
-            <input
-              autoFocus
-              value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
-              onBlur={async () => {
-                setEditingName(false);
-                if (nameInput.trim() && profile) {
-                  const updated = { ...profile, display_name: nameInput.trim() };
-                  setProfile(updated);
-                  await fetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: nameInput.trim() }) });
-                }
-              }}
-              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-              style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #D4860A, #FAC765)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#1A1208', border: 'none', outline: 'none', padding: 0, textAlign: 'center' }}
-            />
-          ) : (
-            <button onClick={() => { setNameInput(profile?.display_name || ''); setEditingName(true); }} style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #D4860A, #FAC765)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#1A1208', border: 'none', cursor: 'pointer', flexShrink: 0 }} title="Click to edit name">
-              {(profile?.avatar_initial || user?.email?.[0] || 'U').toUpperCase()}
-            </button>
-          )}
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{profile?.display_name || user?.email?.split('@')[0] || 'User'}</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>{user?.email} · click to sign out</div>
-          </button>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function Card(props: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div style={{ background: '#fff', borderRadius: 14, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', ...props.style }}>
-      {props.children}
-    </div>
-  );
-}
-
-function CardLabel(props: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 16 }}>{props.children}</div>;
-}
-
 type Session = {
   id: string;
   created_at: string;
@@ -142,6 +40,32 @@ type Session = {
   recommended_drill: string | null;
   duration_seconds: number | null;
 };
+
+function ScoreRing({ score, size = 88 }: { score: number; size?: number }) {
+  const r = (size / 2) - 10;
+  const circ = 2 * Math.PI * r;
+  const dash = (score / 100) * circ;
+  const color = score >= 75 ? '#4ade80' : score >= 60 ? '#D4860A' : '#ef4444';
+  return (
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={8} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={8}
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function Card(props: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', ...props.style }}>
+      {props.children}
+    </div>
+  );
+}
+
+function CardLabel(props: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 16 }}>{props.children}</div>;
+}
 
 function avgScore(sessions: Session[], field: string): number {
   const vals = sessions.map(s => (s as any)[field]).filter((v: number | null) => v != null);
@@ -187,16 +111,16 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<{ display_name: string; avatar_initial: string } | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const supabase = createClient();
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     fetch('/api/profile')
       .then(r => r.json())
       .then(d => { if (d.profile) setProfile(d.profile); setNameInput(d.profile?.display_name || ''); })
       .catch(() => {});
-    fetch('/api/sessions', {
-      headers: { 'x-user-id': user?.id || '' },
-    })
+    fetch('/api/sessions', { headers: { 'x-user-id': user?.id || '' } })
       .then(r => r.json())
       .then(d => { setSessions(d.sessions || []); setLoading(false); })
       .catch(() => setLoading(false));
@@ -229,51 +153,32 @@ export default function Dashboard() {
     { name: 'Closing Technique', value: skillAvg('closing_technique'), color: '#ef4444' },
   ];
   const recentSims = sessions.slice(0, 5);
-  const [activeNav, setActiveNav] = useState('dashboard');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`
-        @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
-          .mobile-sidebar { position: fixed !important; top: 0; left: 0; bottom: 0; width: 220px; z-index: 50; }
-          .main-content { margin-left: 0 !important; }
-        }
-        @media (min-width: 769px) {
-          .hamburger-btn { display: block !important; }
-        }
-      `}</style>
       {/* Sidebar — desktop: always visible; mobile: slide-in overlay */}
-      <div style={{
-        position: 'fixed',
-        top: 0, left: 0, bottom: 0, zIndex: 50,
-        width: 220,
-        transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s ease',
-      }}
-      className={`mobile-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
-        <Sidebar active={activeNav} />
+      <div
+        style={{
+          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
+          width: 220,
+          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease',
+        }}
+        className={`mobile-sidebar ${mobileMenuOpen ? 'open' : ''}`}
+      >
+        <Sidebar active="dashboard" />
       </div>
-      {/* Mobile backdrop */}
       {mobileMenuOpen && (
-        <div
-          onClick={() => setMobileMenuOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }}
-        />
+        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
       )}
 
-      {/* Main content */}
-      <div style={{ flex: 1, overflow: 'auto' }} className="main-content">
+      <div style={{ flex: 1, overflow: 'auto', marginLeft: '220px' }} className="main-content">
         {/* Header */}
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          {/* Hamburger — mobile only */}
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>
-            ☰
-          </button>
+          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
           <div>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Welcome back, {profile?.display_name || user?.email?.split('@')[0] || 'User'}</h2>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Your sales training hub — May 29, 2026</p>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Your sales training hub</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             <div style={{ textAlign: 'center' }}>
@@ -291,13 +196,10 @@ export default function Dashboard() {
         </header>
 
         <div style={{ padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: 20 }}>
-          {/* ── TOP ROW ── */}
-
           {/* Skill Readiness Radar */}
           <Card style={{ gridColumn: '1 / 3' }}>
             <CardLabel>Skill Readiness Score</CardLabel>
             <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-              {/* Score ring + label */}
               <div style={{ position: 'relative', width: 88, height: 88, flexShrink: 0 }}>
                 <ScoreRing score={avgOverall(sessions) || 0} size={88} />
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -358,7 +260,7 @@ export default function Dashboard() {
             )}
           </Card>
 
-          {/* Skill Breakdown (right column, next to Recommended Drill) */}
+          {/* Skill Breakdown */}
           <Card>
             <CardLabel>Skill Breakdown</CardLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -391,7 +293,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af', fontSize: 12 }}>
-                  {progressData.length <= 1 ? 'More sessions needed to show trend' : 'No data'}
+                  More sessions needed to show trend
                 </div>
               )}
             </div>
@@ -402,7 +304,7 @@ export default function Dashboard() {
             <CardLabel>Recent Simulations</CardLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {recentSims.length === 0 && !loading && <div style={{ color: '#9ca3af', fontSize: 12 }}>No sessions yet.</div>}
-            {recentSims.map(sim => (
+              {recentSims.map(sim => (
                 <div key={sim.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 20 }}>{scenarioEmoji(sim.scenario_name)}</span>
@@ -419,9 +321,18 @@ export default function Dashboard() {
               ))}
             </div>
           </Card>
-
-</div>
+        </div>
       </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .hamburger-btn { display: block !important; }
+          .main-content { margin-left: 0 !important; }
+        }
+        @media (min-width: 769px) {
+          .hamburger-btn { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
