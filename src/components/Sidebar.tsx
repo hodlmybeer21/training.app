@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 const NAV_ITEMS = [
   { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
   { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
@@ -10,6 +12,8 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ active }: { active: string }) {
+  const router = useRouter();
+
   return (
     <aside style={{ width: 220, background: '#13151F', minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '20px 0', borderRight: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -20,9 +24,7 @@ export default function Sidebar({ active }: { active: string }) {
         {NAV_ITEMS.map(item => (
           <button
             key={item.id}
-            onClick={() => {
-              if (item.href && item.href !== '#') window.location.href = item.href;
-            }}
+            onClick={() => { if (item.href) router.push(item.href); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
               borderRadius: 8, border: 'none', cursor: 'pointer', width: '100%',
