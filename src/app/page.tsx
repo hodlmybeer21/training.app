@@ -25,30 +25,21 @@ function speak(text: string, persona: Persona, onEnd: () => void) {
   synth.speak(utter);
 }
 
-const USE_CASES = [
-  { emoji: '🏪', title: 'New Account Pitch', desc: 'Practice pitching your portfolio to a skeptical retailer' },
-  { emoji: '😤', title: 'Difficult Customer Objections', desc: 'Handle price complaints and pushback with confidence' },
-  { emoji: '📋', title: 'Annual Review Prep', desc: 'Run through tough management conversations before they happen' },
-  { emoji: '🤝', title: 'Contract Renewal Talks', desc: 'Negotiate terms with distributors who want more' },
-  { emoji: '🍺', title: 'Tap Handle Advocacy', desc: 'Make the case for slower-moving craft SKUs' },
-  { emoji: '🚪', title: 'Exit Interview Prep', desc: 'Navigate sensitive conversations with departing employees' },
-];
-
-const STEPS = [
-  { num: '01', title: 'Pick a scenario', desc: 'Choose from distributor-specific conversations — new accounts, objections, management reviews, competitive situations.' },
-  { num: '02', title: 'Talk it out', desc: 'Use your mic. The AI customer or manager talks back in real time — interruptions, pushback, all of it.' },
-  { num: '03', title: 'Get better', desc: 'Every conversation sharpens your instinct. No judgment, no embarrassment. Just practice.' },
-];
-
 const CATEGORIES = [
-  { id: 'all', label: 'All Scenarios' },
-  { id: 'grocery', label: '🛒 Off-Premise: Grocery & Retail' },
-  { id: 'cstore', label: '⛽ Off-Premise: C-Stores & Convenience' },
-  { id: 'liquor', label: '🏪 Off-Premise: Liquor & Package Stores' },
-  { id: 'onprem', label: '🍺 On-Premise: Bars & Restaurants' },
-  { id: 'internal', label: '📊 Distributor: Internal & Management' },
+  { id: 'all', label: 'All' },
+  { id: 'grocery', label: '🛒 Grocery & Retail' },
+  { id: 'cstore', label: '⛽ C-Stores' },
+  { id: 'liquor', label: '🏪 Liquor Stores' },
+  { id: 'onprem', label: '🍺 Bars & Restaurants' },
+  { id: 'internal', label: '📊 Internal & Management' },
   { id: 'craft', label: '🏠 Craft & Specialty' },
   { id: 'competitive', label: '🎯 Competitive & Win-Back' },
+];
+
+const TICKER_ITEMS = [
+  'New Account Pitch', 'Hostile Prospect', 'Annual Review Prep',
+  'Craft Brewery Taproom', 'NH Liquor Store Owner', 'Win-Back Campaign',
+  'Contract Renewal', 'Route Sales Rep',
 ];
 
 export default function Home() {
@@ -131,8 +122,7 @@ export default function Home() {
 
   const resetConversation = () => { stopSpeaking(); setStarted(false); setMessages([]); conversationRef.current = []; };
 
-  const statusColor: Record<Status, string> = { idle: '#6b7280', listening: '#ef4444', thinking: '#f59e0b', speaking: '#4ade80' };
-  const statusLabel: Record<Status, string> = { idle: 'Tap mic to speak', listening: 'Listening...', thinking: 'Thinking...', speaking: 'Speaking...' };
+  const statusColor: Record<Status, string> = { idle: 'rgba(245,237,216,0.3)', listening: '#ef4444', thinking: '#D4860A', speaking: '#9DC44B' };
 
   const filteredPersonas = ALL_PERSONAS.filter(p => {
     if (categoryFilter === 'all') return true;
@@ -147,289 +137,289 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-[#e6edf3]">
-      {/* ── NAV ── */}
-      <header className="border-b border-[#21262d] px-6 py-4 sticky top-0 z-50 bg-[#0d1117]/95 backdrop-blur-sm">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🍺</span>
-            <div>
-              <h1 className="text-lg font-bold text-[#f0f6fc]">TrainField AI</h1>
-              <p className="text-xs text-[#6e7681]">for Beer Distribution Teams</p>
-            </div>
+    <div>
+      {/* ── HERO ── */}
+      <section className="hero">
+        <div className="hero-bg-lines" />
+        <div className="hero-left">
+          <div className="eyebrow">
+            <div className="eyebrow-dot" />
+            For Beer Distribution Teams
           </div>
-          <div className="flex items-center gap-4">
-            <nav className="hidden md:flex gap-6 text-sm text-[#8b949e]">
-              <a href="#how-it-works" className="hover:text-[#e6edf3] transition-colors">How it works</a>
-              <a href="#scenarios" className="hover:text-[#e6edf3] transition-colors">Scenarios</a>
-              <a href="#start" className="hover:text-[#e6edf3] transition-colors">Try free</a>
-            </nav>
-            <span className="text-xs px-3 py-1.5 rounded-full bg-[#4ade80]/10 text-[#4ade80] border border-[#4ade80]/30">
-              Free — no account needed
-            </span>
+          <h1 className="font-display" style={{ fontSize: 'clamp(72px, 8vw, 108px)', lineHeight: 0.92, letterSpacing: '0.01em', color: 'var(--cream)', marginBottom: 12 }}>
+            Train<span style={{ color: 'var(--amber)', display: 'block' }}>Before<br />You Pitch.</span>
+          </h1>
+          <p className="tagline" style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.6, color: 'rgba(245,237,216,0.65)', maxWidth: 400, margin: '22px 0 40px' }}>
+            The AI flight simulator for your sales team. Practice every conversation before it happens — from angry retailers to annual reviews.
+          </p>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <a href="#start" className="btn-primary">Start for free</a>
+            <a href="#how" className="btn-ghost">See how it works</a>
+          </div>
+          <div className="hero-stats">
+            {[['13+', 'Scenario types'], ['100%', 'Voice-powered'], ['$0', 'Free to start']].map(([v, l]) => (
+              <div key={l}>
+                <div className="stat-num">{v}</div>
+                <div className="stat-label">{l}</div>
+              </div>
+            ))}
           </div>
         </div>
-      </header>
 
-      {/* ── HERO ── */}
-      <section className="px-6 py-20 text-center border-b border-[#21262d]">
-        <div className="max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-[#4ade80]/10 text-[#4ade80] border border-[#4ade80]/30 mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80] animate-pulse" />
-            Built for beer distributors — free to try
-          </div>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-[#f0f6fc] leading-tight mb-6">
-            The AI flight simulator<br />for your sales team.
-          </h2>
-          <p className="text-lg text-[#8b949e] mb-8 leading-relaxed">
-            Practice every conversation before it happens in the field. From angry retailer objections to annual review prep — your team talks to AI personas that push back, challenge, and coach.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="#start" className="px-8 py-4 rounded-xl bg-[#4ade80] text-[#0d1117] font-bold text-lg hover:bg-[#22c55e] transition-colors shadow-lg shadow-[#4ade80]/20">
-              Start practicing — it's free
-            </a>
-            <a href="#how-it-works" className="px-8 py-4 rounded-xl border border-[#30363d] text-[#8b949e] hover:border-[#484f58] hover:text-[#e6edf3] transition-all">
-              See how it works →
-            </a>
+        {/* Phone mockup */}
+        <div className="hero-right">
+          <div className="phone-wrap">
+            <div className="phone-glow" />
+            <div className="phone">
+              <div className="phone-top">
+                <div className="phone-logo">TrainField</div>
+                <div className="live-badge"><div className="live-dot" />Live</div>
+              </div>
+              <div className="phone-body">
+                <div className="scenario-tag">Scenario: Difficult Customer</div>
+                <div className="chat-msg">
+                  <div className="name-tag">AI Customer</div>
+                  <div className="chat-bubble ai">Your prices are 12% above the competition. Why would I switch?</div>
+                </div>
+                <div className="chat-msg clearfix">
+                  <div className="name-tag user-name">You</div>
+                  <div className="chat-bubble user">The margin on our craft lineup beats their volume brands every time...</div>
+                </div>
+                <div className="chat-msg">
+                  <div className="name-tag">AI Customer</div>
+                  <div className="chat-bubble ai" style={{ background: 'var(--dark3)', display: 'flex', alignItems: 'center' }}>
+                    <div className="typing"><span /><span /><span /></div>
+                  </div>
+                </div>
+                <div className="mic-area">
+                  <div className="mic-btn">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4.5" y="1" width="5" height="7.5" rx="2.5" fill="#1A1208" />
+                      <path d="M2 7.5a5 5 0 0010 0" stroke="#1A1208" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                      <line x1="7" y1="12.5" x2="7" y2="13" stroke="#1A1208" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="mic-wave">
+                    {[6,14,20,10,22,8,16,12,20,6].map((h, i) => <span key={i} style={{ height: h, animationDelay: `${i * 0.05}s` }} />)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── PROOF STRIP ── */}
-      <section className="border-b border-[#21262d] px-6 py-8">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      {/* ── TICKER ── */}
+      <div className="ticker">
+        <div className="ticker-inner">
+          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, i) => (
+            <span key={i} className="ticker-item">{item} <span className="ticker-sep">◆</span></span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── HOW IT WORKS ── */}
+      <section id="how" className="section">
+        <div className="section-label">How it works</div>
+        <h2 className="section-title">Three steps to <em>better</em><br />conversations</h2>
+        <div className="steps-grid">
           {[
-            { val: '13+', label: 'Scenario types' },
-            { val: '100%', label: 'Voice-powered' },
-            { val: '$0', label: 'Free to start' },
-            { val: 'Local', label: 'Your data stays on-device' },
-          ].map(({ val, label }) => (
-            <div key={label}>
-              <div className="text-3xl font-extrabold text-[#4ade80]">{val}</div>
-              <div className="text-sm text-[#6e7681] mt-1">{label}</div>
+            { num: '01', icon: '📋', title: 'Pick your scenario', desc: 'Choose from distributor-specific conversations — new accounts, chain buyers, management reviews, competitive situations.' },
+            { num: '02', icon: '🎤', title: 'Talk it out', desc: 'Use your mic. The AI talks back in real time — with interruptions, pushback, and realistic objections.' },
+            { num: '03', icon: '⚡', title: 'Get instant feedback', desc: 'Every session sharpens your instincts. No judgment. No embarrassment. Just practice that actually sticks.' },
+          ].map(({ num, icon, title, desc }) => (
+            <div key={num} className="step">
+              <div className="step-num">{num}</div>
+              <div className="step-icon">{icon}</div>
+              <div className="step-title">{title}</div>
+              <div className="step-desc">{desc}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
-      <section id="how-it-works" className="border-b border-[#21262d] px-6 py-16">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-sm font-semibold text-[#4ade80] uppercase tracking-widest mb-3">How it works</p>
-          <h3 className="text-3xl font-bold text-[#f0f6fc] mb-10">Three steps to better conversations</h3>
-          <div className="grid md:grid-cols-3 gap-8">
-            {STEPS.map(({ num, title, desc }) => (
-              <div key={num} className="bg-[#161b22] border border-[#21262d] rounded-2xl p-6">
-                <div className="text-5xl font-extrabold text-[#21262d] mb-4 leading-none select-none">{num}</div>
-                <h4 className="text-lg font-bold text-[#f0f6fc] mb-2">{title}</h4>
-                <p className="text-sm text-[#8b949e] leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
+      {/* ── PERSONAS ── */}
+      <section className="personas-section">
+        <div className="section-label">Who you&apos;ll practice with</div>
+        <h2 className="section-title">Real personas.<br /><em>Real pushback.</em></h2>
+        <div className="personas-grid">
+          {[
+            { emoji: '😤', name: 'The Difficult Customer', desc: 'Aggressive price pushback, complaints, and zero patience.', tag: 'Off-Premise' },
+            { emoji: '🛒', name: 'Grocery Chain Buyer', desc: 'Controls shelf space at Market Basket, Shaw&apos;s, Hannaford.', tag: 'Retail' },
+            { emoji: '🔥', name: 'Hostile Prospect', desc: 'Wants everything, gives nothing. Extreme resilience test.', tag: 'Win-Back' },
+            { emoji: '📊', name: 'District Sales Manager', desc: 'Pushing volume, tracking Nielsen numbers, managing SG&A.', tag: 'Internal' },
+          ].map(({ emoji, name, desc, tag }) => (
+            <div key={name} className="persona-card">
+              <div className="persona-emoji">{emoji}</div>
+              <div className="persona-name">{name}</div>
+              <div className="persona-desc">{desc}</div>
+              <div className="persona-tag">{tag}</div>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ── USE CASES ── */}
-      <section className="border-b border-[#21262d] px-6 py-16">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-sm font-semibold text-[#4ade80] uppercase tracking-widest mb-3">Scenarios</p>
-          <h3 className="text-3xl font-bold text-[#f0f6fc] mb-3">Real conversations. Practiced safely.</h3>
-          <p className="text-[#8b949e] mb-10">Every scenario is built for how beer distributors actually sell — from chain negotiations to craft evangelism.</p>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {USE_CASES.map(({ emoji, title, desc }) => (
-              <div key={title} className="bg-[#161b22] border border-[#21262d] rounded-xl p-5 hover:border-[#4ade80]/40 transition-all">
-                <span className="text-3xl mb-3 block">{emoji}</span>
-                <h4 className="font-bold text-[#f0f6fc] mb-1">{title}</h4>
-                <p className="text-sm text-[#8b949e]">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="border-b border-[#21262d] px-6 py-16">
-        <div className="max-w-5xl mx-auto">
-          <p className="text-sm font-semibold text-[#4ade80] uppercase tracking-widest mb-3">Why voice first</p>
-          <h3 className="text-3xl font-bold text-[#f0f6fc] mb-10">Because the words you say matter more than the ones you type</h3>
-          <div className="grid md:grid-cols-2 gap-6">
+      {/* ── WHY VOICE ── */}
+      <section className="why-section">
+        <div className="why-left">
+          <div className="section-label">Why it works</div>
+          <h2 className="section-title">Words spoken <em>matter</em><br />more than typed</h2>
+          <p style={{ fontSize: 16, fontWeight: 300, lineHeight: 1.75, color: 'rgba(245,237,216,0.55)', maxWidth: 440, marginBottom: 36 }}>
+            Your reps don&apos;t send emails in the field. They talk. TrainField trains the muscle that actually matters — your voice, your instincts, your timing.
+          </p>
+          <ul className="why-features">
             {[
-              { icon: '🎤', title: 'Voice-powered practice', desc: 'Talk out loud — just like in the field. No typing, no friction. Your team practices the way they actually work.' },
-              { icon: '😤', title: 'AI pushes back', desc: 'Not a scripted chatbot. These personas interrupt, challenge, and object — like real customers and managers.' },
-              { icon: '⚡', title: 'Instant feedback', desc: 'Every conversation gives your team immediate insight into where they shine and where they stumble.' },
-              { icon: '🔒', title: 'No data leaves your team', desc: 'Voice input stays local in the browser. Only text goes to the AI — nothing stored, nothing shared.' },
-              { icon: '🍺', title: 'Built for distribution', desc: 'Scenarios written by people who know the beer business — chain negotiations, craft pitches, route-level conversations.' },
-              { icon: '💸', title: 'Free to start', desc: 'No budget approval needed. Get your team practicing in minutes, not months.' },
-            ].map(({ icon, title, desc }) => (
-              <div key={title} className="flex gap-4 bg-[#161b22] border border-[#21262d] rounded-xl p-5">
-                <span className="text-2xl flex-shrink-0">{icon}</span>
+              { icon: '🎤', strong: 'Voice-first practice', text: 'Talk out loud — just like you would with a real account.' },
+              { icon: '🤖', strong: 'AI that pushes back', text: 'Not a script. These personas interrupt, challenge, and object.' },
+              { icon: '🔒', strong: 'Your data stays local', text: 'Voice stays in-browser. Only text goes to the AI.' },
+            ].map(({ icon, strong, text }) => (
+              <li key={strong}>
+                <div className="feature-icon">{icon}</div>
                 <div>
-                  <h4 className="font-bold text-[#f0f6fc] mb-1">{title}</h4>
-                  <p className="text-sm text-[#8b949e] leading-relaxed">{desc}</p>
+                  <span className="feature-strong">{strong}</span>
+                  {text}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
-      </section>
-
-      {/* ── APP START ── */}
-      <section id="start" className="px-6 py-16">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
-            <h3 className="text-3xl font-bold text-[#f0f6fc] mb-3">Ready to practice?</h3>
-            <p className="text-[#8b949e]">Pick a scenario below. Press mic. Start talking.</p>
-          </div>
-
-          {/* Category filter */}
-          <div className="flex flex-wrap gap-2 mb-6 justify-center">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryFilter(cat.id)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
-                  categoryFilter === cat.id
-                    ? 'border-[#4ade80] bg-[#1a2a1a] text-[#4ade80]'
-                    : 'border-[#30363d] text-[#8b949e] hover:border-[#484f58]'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Persona grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {filteredPersonas.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedPersona(p)}
-                className={`text-left p-4 rounded-xl border transition-all ${
-                  selectedPersona.id === p.id
-                    ? 'border-[#4ade80] bg-[#1a2a1a]'
-                    : 'border-[#30363d] bg-[#161b22] hover:border-[#484f58]'
-                }`}
-                style={selectedPersona.id === p.id ? { borderColor: p.color + '88' } : {}}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{p.emoji}</span>
-                  <span className="font-semibold text-[#f0f6fc] text-sm">{p.name}</span>
+        <div className="why-right">
+          <div className="feedback-card">
+            <div className="feedback-header">
+              <div className="fb-title">Session Debrief</div>
+              <div className="fb-score">84 / 100</div>
+            </div>
+            <div className="feedback-body">
+              {[
+                { label: 'Objection Handling', pct: 91 },
+                { label: 'Value Articulation', pct: 78 },
+                { label: 'Confidence & Pacing', pct: 85 },
+                { label: 'Closing Technique', pct: 72 },
+              ].map(({ label, pct }) => (
+                <div key={label} className="meter-row">
+                  <div className="meter-label"><span>{label}</span><span>{pct}%</span></div>
+                  <div className="meter-track"><div className="meter-fill" style={{ width: `${pct}%` }} /></div>
                 </div>
-                <p className="text-xs text-[#8b949e] leading-relaxed">{p.description}</p>
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={startConversation}
-            className="mt-6 w-full py-4 rounded-xl bg-[#4ade80] text-[#0d1117] font-bold text-lg hover:bg-[#22c55e] transition-colors shadow-lg shadow-[#4ade80]/20"
-          >
-            Start Roleplay — {selectedPersona.emoji} {selectedPersona.name}
-          </button>
-        </div>
-      </section>
-
-      {/* ── LIVE CONVERSATION (hidden until started) ── */}
-      {started && (
-        <section className="px-6 pb-16">
-          <div className="max-w-3xl mx-auto">
-            <div className="bg-[#161b22] border border-[#21262d] rounded-2xl p-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{selectedPersona.emoji}</span>
-                  <div>
-                    <div className="font-bold text-[#f0f6fc]">{selectedPersona.name}</div>
-                    <div className="text-xs text-[#6e7681]">Voice mode active — speak out loud</div>
-                  </div>
-                </div>
-                <button onClick={resetConversation} className="text-xs text-[#6e7681] hover:text-[#e6edf3] underline underline-offset-2">
-                  ← New scenario
-                </button>
-              </div>
-
-              <div className="bg-[#0d1117] rounded-xl p-4 mb-4 min-h-[240px] max-h-[50vh] overflow-y-auto space-y-3">
-                {messages.length === 0 && (
-                  <div className="text-center text-[#484f58] text-sm py-8">Connecting...</div>
-                )}
-                {messages.map((m, i) => (
-                  <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-[#1f6feb] text-white rounded-br-md'
-                        : 'bg-[#1c2128] text-[#c9d1d9] rounded-bl-md'
-                    }`}>
-                      <div className="text-xs opacity-60 mb-1">{m.role === 'user' ? 'You' : selectedPersona.name}</div>
-                      {m.content}
-                    </div>
-                  </div>
-                ))}
-                {interimTranscript && (
-                  <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl px-4 py-3 text-sm bg-[#1f6feb33] text-[#8b949e] italic border border-[#1f6feb44]">
-                      {interimTranscript}<span className="animate-pulse">|</span>
-                    </div>
-                  </div>
-                )}
-                {status === 'thinking' && (
-                  <div className="flex justify-start">
-                    <div className="bg-[#1c2128] rounded-2xl rounded-bl-md px-4 py-3">
-                      <div className="flex items-center gap-2 text-sm text-[#6e7681]">
-                        <span className="flex gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] animate-bounce" style={{animationDelay:'0ms'}} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] animate-bounce" style={{animationDelay:'150ms'}} />
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] animate-bounce" style={{animationDelay:'300ms'}} />
-                        </span>
-                        Thinking...
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {groqError && (
-                  <div className="text-center text-xs text-[#f85149] py-2">⚠️ {groqError}</div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              <div className="flex flex-col items-center gap-3">
-                <div className="flex items-center gap-2 text-sm" style={{ color: statusColor[status] }}>
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: statusColor[status] }} />
-                  {statusLabel[status]}
-                </div>
-                <button
-                  onClick={handleMicClick}
-                  className={`relative w-20 h-20 rounded-full flex items-center justify-center text-3xl transition-all ${
-                    status === 'listening'
-                      ? 'bg-[#ef4444] shadow-[0_0_0_8px_#ef444444]'
-                      : status === 'speaking'
-                      ? 'bg-[#4ade80] shadow-[0_0_0_8px_#4ade8044]'
-                      : 'bg-[#30363d] hover:bg-[#3d444d]'
-                  }`}
-                >
-                  {status === 'listening' ? '🔴' : status === 'speaking' ? '🔊' : '🎤'}
-                  {status === 'listening' && (
-                    <span className="absolute inset-0 rounded-full border-4 border-[#ef4444] animate-ping opacity-40" />
-                  )}
-                </button>
-                <p className="text-xs text-[#484f58]">
-                  {status === 'idle' ? 'Press mic, then speak' : 'Press again to stop'}
-                </p>
+              ))}
+              <div className="fb-quote">
+                Strong on data — you quoted margin numbers confidently. Work on closing earlier; you circled price twice without asking for the order.
               </div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* ── FOOTER ── */}
-      <footer className="border-t border-[#21262d] px-6 py-8">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-[#6e7681] text-sm">
-            <span className="text-lg">🍺</span>
-            <span>TrainField AI — Built for Beer Distribution Teams</span>
-          </div>
-          <div className="text-xs text-[#484f58]">
-            Voice stays local. Only text goes to the AI. No account needed.
+      {/* ── APP SECTION ── */}
+      <section id="start" className="app-section">
+        <div className="section-label">Try it now</div>
+        <h2 className="section-title" style={{ fontSize: 'clamp(40px, 4vw, 64px)', marginBottom: 16 }}>
+          Pick a scenario.<br />Press mic. Start talking.
+        </h2>
+        <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(245,237,216,0.5)', marginBottom: 40, maxWidth: 500 }}>
+          No account needed. No budget approval. Get your team practicing in minutes.
+        </p>
+
+        {/* Category filter */}
+        <div className="cat-filter">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`cat-btn ${categoryFilter === cat.id ? 'active' : ''}`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Persona grid */}
+        <div className="persona-grid">
+          {filteredPersonas.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setSelectedPersona(p)}
+              className={`persona-card ${selectedPersona.id === p.id ? 'selected' : ''}`}
+              style={selectedPersona.id === p.id ? { borderColor: 'var(--amber)', background: 'var(--dark2)' } : {}}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <span style={{ fontSize: 24 }}>{p.emoji}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--cream)' }}>{p.name}</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'rgba(245,237,216,0.4)', lineHeight: 1.5 }}>{p.description}</p>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={startConversation}
+          className="btn-primary"
+          style={{ display: 'block', marginTop: 32, fontSize: 15, padding: '16px 40px' }}
+        >
+          Start Roleplay — {selectedPersona.emoji} {selectedPersona.name}
+        </button>
+      </section>
+
+      {/* ── LIVE CONVERSATION ── */}
+      {started && (
+        <div className="conv-wrap" style={{ padding: '0 70px 100px', background: 'var(--dark2)' }}>
+          <div className="conv-card" style={{ maxWidth: 480, margin: '0 auto' }}>
+            <div className="conv-header">
+              <div className="conv-title">{selectedPersona.emoji} {selectedPersona.name}</div>
+              <button onClick={resetConversation} className="reset-btn">← New scenario</button>
+            </div>
+            <div className="conv-body">
+              {messages.length === 0 && (
+                <div className="conv-thinking"><span /><span /><span />Connecting...</div>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`conv-msg ${m.role === 'user' ? 'clearfix' : ''}`}>
+                  <div className="conv-meta" style={m.role === 'user' ? { textAlign: 'right' } : {}}>{m.role === 'user' ? 'You' : selectedPersona.name}</div>
+                  <div className={`conv-bubble ${m.role === 'user' ? 'conv-user' : 'conv-ai'}`}>{m.content}</div>
+                </div>
+              ))}
+              {interimTranscript && (
+                <div className="conv-msg clearfix" style={{ textAlign: 'right' }}>
+                  <div className="conv-meta">You</div>
+                  <div className="conv-bubble interim">{interimTranscript}|</div>
+                </div>
+              )}
+              {status === 'thinking' && (
+                <div className="conv-thinking"><span /><span /><span />Thinking...</div>
+              )}
+              {groqError && <div className="conv-error">⚠ {groqError}</div>}
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="conv-footer">
+              <div className="conv-status">
+                <div className="conv-dot" style={{ background: statusColor[status] }} />
+                {status === 'idle' ? 'Tap mic to speak' : status === 'listening' ? 'Listening...' : status === 'thinking' ? 'Thinking...' : 'Speaking...'}
+              </div>
+              <button
+                onClick={handleMicClick}
+                className={`mic-large ${status === 'listening' ? 'listening' : status === 'speaking' ? 'speaking' : 'idle'}`}
+              >
+                {status === 'listening' ? '🔴' : status === 'speaking' ? '🔊' : '🎤'}
+              </button>
+              <p className="mic-hint">{status === 'idle' ? 'Press mic, then speak out loud' : 'Press again to stop'}</p>
+            </div>
           </div>
         </div>
+      )}
+
+      {/* ── FINAL CTA ── */}
+      <section className="cta-section">
+        <h2 className="font-display" style={{ color: 'var(--dark)', fontSize: 'clamp(56px, 7vw, 96px)', marginBottom: 20 }}>
+          Ready to<br />practice?
+        </h2>
+        <p>No account needed. No budget approval. Get your team practicing in minutes — not months.</p>
+        <button className="btn-dark">Start for free — no signup</button>
+        <div className="free-note">Voice stays local · No account needed · Free to start</div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="footer">
+        <div className="footer-logo">TrainField AI</div>
+        <div className="footer-note">Built for beer distribution teams · Voice stays local · No account needed</div>
       </footer>
     </div>
   );
