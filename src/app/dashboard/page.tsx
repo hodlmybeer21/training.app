@@ -110,6 +110,7 @@ const NAV_ITEMS = [
   { emoji: '📊', label: 'Reviews', id: 'reviews', href: '/dashboard/reviews' },
   { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
   { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
+  { emoji: '🎯', label: 'My Team', id: 'manager', href: '/dashboard/manager' },
 ];
 
 function Sidebar({ active }: { active: string }) {
@@ -143,6 +144,7 @@ function Sidebar({ active }: { active: string }) {
 
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [goals, setGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ display_name: string; avatar_initial: string } | null>(null);
@@ -159,6 +161,10 @@ export default function Dashboard() {
       .then(r => r.json())
       .then(d => { setSessions(d.sessions || []); setLoading(false); })
       .catch(() => setLoading(false));
+    fetch('/api/goals')
+      .then(r => r.json())
+      .then(d => { if (d.goals) setGoals(d.goals); })
+      .catch(() => {});
   }, []);
 
   const latest = sessions[0];
@@ -171,10 +177,10 @@ export default function Dashboard() {
   const skillAvg = (field: string) => avgScore(sessions, field);
   const radarData = [
     { subject: 'Discovery', value: skillAvg('discovery') || 0, fullMark: 100 },
-    { subject: 'Objection Handling', value: skillAvg('objection_handling') || 0, fullMark: 100 },
-    { subject: 'Value Articulation', value: skillAvg('value_articulation') || 0, fullMark: 100 },
-    { subject: 'Confidence & Pacing', value: skillAvg('confidence_pacing') || 0, fullMark: 100 },
-    { subject: 'Closing Technique', value: skillAvg('closing_technique') || 0, fullMark: 100 },
+    { subject: 'Objection', value: skillAvg('objection_handling') || 0, fullMark: 100 },
+    { subject: 'Value Prop', value: skillAvg('value_articulation') || 0, fullMark: 100 },
+    { subject: 'Confidence', value: skillAvg('confidence_pacing') || 0, fullMark: 100 },
+    { subject: 'Closing', value: skillAvg('closing_technique') || 0, fullMark: 100 },
   ];
   const progressData = sessions.slice(0, 10).reverse().map(s => ({
     date: formatDate(s.created_at),
@@ -209,13 +215,15 @@ export default function Dashboard() {
 
       <div style={{ flex: 1, overflow: 'auto', marginLeft: '220px' }} className="main-content">
         {/* Header */}
-        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
-          <div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Welcome back, {profile?.display_name || user?.email?.split('@')[0] || 'User'}</h2>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Your sales training hub</p>
+        <header className="dash-header" style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Welcome back, {profile?.display_name || user?.email?.split('@')[0] || 'User'}</h2>
+              <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Your sales training hub</p>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: '#D4860A' }}>{streak}</div>
               <div style={{ fontSize: 10, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Recent Sessions</div>
@@ -230,7 +238,23 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div style={{ padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: 20 }}>
+        {goals.length > 0 && (
+          <div style={{ margin: '20px 28px 0', padding: '14px 18px', background: '#1A1208', border: '1px solid rgba(212,134,10,0.35)', borderRadius: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#D4860A', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>🎯 Team Goals Active</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {goals.map(g => (
+                <div key={g.id} style={{ fontSize: 12, color: '#F5EDD8', lineHeight: 1.5 }}>
+                  • {g.goal_text}
+                  {g.target_cases && <span style={{ color: '#D4860A', marginLeft: 8 }}>→ {g.target_cases} cases</span>}
+                  {g.target_pods && <span style={{ color: '#9DC44B', marginLeft: 8 }}>→ {g.target_pods} PODs</span>}
+                  {g.product_sku && <span style={{ color: '#7C3AED', marginLeft: 8 }}>#{g.product_sku}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="dash-grid" style={{ padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: 20 }}>
           {/* Skill Readiness Radar */}
           <Card style={{ gridColumn: '1 / 3' }}>
             <CardLabel>Skill Readiness Score</CardLabel>
@@ -242,9 +266,9 @@ export default function Dashboard() {
                   <span style={{ fontSize: 9, color: '#9ca3af' }}>/100</span>
                 </div>
               </div>
-              <div style={{ flex: 1, height: 180 }}>
+              <div style={{ flex: 1, height: 180, minWidth: 0, overflow: 'hidden' }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData} outerRadius={75}>
+                  <RadarChart data={radarData} outerRadius={65}>
                     <PolarGrid stroke="#e5e7eb" />
                     <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#6b7280' }} />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
@@ -360,13 +384,8 @@ export default function Dashboard() {
       </div>
 
       <style>{`
-        @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
-          .main-content { margin-left: 0 !important; }
-        }
-        @media (min-width: 769px) {
-          .hamburger-btn { display: none !important; }
-        }
+        .hamburger-btn { display: block !important; }
+        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
       `}</style>
     </div>
   );

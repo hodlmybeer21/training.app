@@ -26,7 +26,7 @@ export default function SettingsPage() {
         }
       `}</style>
       <div style={{ position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, width: 220, transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.25s ease' }}>
-        <Sidebar active="settings" supabase={supabase} user={user} profile={profile} />
+        <Sidebar active="settings" />
       </div>
       {mobileMenuOpen && <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />}
 

@@ -13,6 +13,42 @@ type Status = 'idle' | 'listening' | 'thinking' | 'speaking';
 type SR = any;
 declare global { interface Window { SpeechRecognition: new () => SR; webkitSpeechRecognition: new () => SR; } }
 
+function getBestVoice(voices: SpeechSynthesisVoice[], persona: Persona): SpeechSynthesisVoice | null {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIOS = /iPhone|iPad|iPod/.test(ua);
+  const isAndroid = /Android/.test(ua);
+  const isMacOS = /Macintosh/.test(ua) && !/Chrome/.test(ua);
+
+  if (isIOS) {
+    // iOS: prefer Siri/Karen (high-quality neural voices)
+    return voices.find(v => /karen|siri|alice|tane/i.test(v.name) && v.lang.startsWith('en')) ||
+           voices.find(v => v.lang === 'en-AU' && v.localService) ||
+           voices.find(v => (v.lang === 'en-GB' || v.lang === 'en-AU') && v.localService) ||
+           voices.find(v => v.lang.startsWith('en') && v.localService) ||
+           null;
+  }
+
+  if (isAndroid) {
+    // Android Chrome: prefer Google voices
+    return voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
+           voices.find(v => v.name.includes('en-US') && v.lang.startsWith('en')) ||
+           null;
+  }
+
+  if (isMacOS) {
+    // macOS Safari/Chrome: prefer Samantha/Alex
+    return voices.find(v => /samantha|alex|Optima/i.test(v.name)) ||
+           voices.find(v => v.lang.startsWith('en') && v.localService) ||
+           null;
+  }
+
+  // Desktop Chrome / others: current filter as final fallback
+  return voices.find(v =>
+    (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google'))
+    && v.lang.startsWith('en')
+  ) || null;
+}
+
 function speak(text: string, persona: Persona, onEnd: () => void) {
   const synth = window.speechSynthesis;
   if (!synth) return;
@@ -20,9 +56,25 @@ function speak(text: string, persona: Persona, onEnd: () => void) {
   const utter = new SpeechSynthesisUtterance(text);
   utter.pitch = persona.voicePitch;
   utter.rate = persona.voiceRate;
-  const voices = synth.getVoices();
-  const preferred = voices.find(v => (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google') && v.name.includes('en-US')) && v.lang.startsWith('en'));
-  if (preferred) utter.voice = preferred;
+
+  let voices = synth.getVoices();
+  // iOS populates voices asynchronously — wait for them
+  if (voices.length === 0) {
+    const resolveVoices = () => {
+      voices = synth.getVoices();
+      const best = getBestVoice(voices, persona);
+      if (best) utter.voice = best;
+    };
+    synth.onvoiceschanged = resolveVoices;
+    // Kick off speech immediately — voices will update when available
+    // but utterance plays regardless; we'll update voice when voices load
+    const bestNow = getBestVoice(voices, persona);
+    if (bestNow) utter.voice = bestNow;
+  } else {
+    const best = getBestVoice(voices, persona);
+    if (best) utter.voice = best;
+  }
+
   utter.onend = onEnd;
   utter.onerror = onEnd;
   synth.speak(utter);
@@ -320,6 +372,8 @@ function Select({ label, value, onChange, options }: { label: string; value: str
 export default function PracticePage() {
   const [phase, setPhase] = useState<'setup' | 'call' | 'review'>('setup');
   const [selectedPersona, setSelectedPersona] = useState<Persona>(ALL_PERSONAS[0]);
+  const [dealStage, setDealStage] = useState<'initial-pitch'|'proposal'|'negotiation'|'renewal'>('initial-pitch');
+  const [difficulty, setDifficulty] = useState<'easy'|'challenging'|'intense'>('challenging');
   const [messages, setMessages] = useState<Message[]>([]);
   const [callSeconds, setCallSeconds] = useState(0);
   const [status, setStatus] = useState<'idle' | 'speaking' | 'listening' | 'thinking'>('idle');
@@ -333,7 +387,9 @@ export default function PracticePage() {
   const [nameInput, setNameInput] = useState('');
   const [activeNav, setActiveNav] = useState('practice');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [customPersonas, setCustomPersonas] = useState<{ id: string; name: string; emoji: string; color: string; description: string; systemPrompt: string; openingLine: string; voicePitch: number; voiceRate: number; scoring_hints: string }[]>([]);
   const supabase = createClient();
+  const allPersonasRef = useRef([...ALL_PERSONAS]);
   const conversationRef = useRef<Message[]>([]);
   const recognitionRef = useRef<SR | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
@@ -341,6 +397,7 @@ export default function PracticePage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groqErrorRef = useRef('');
+  const goalsContextRef = useRef('');
 
   useEffect(() => {
     if (phase === 'call') messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -351,9 +408,75 @@ export default function PracticePage() {
       .then(r => r.json())
       .then(d => { if (d.profile) setProfile(d.profile); setNameInput(d.profile?.display_name || ''); })
       .catch(() => {});
+    // Load active sales goals for this team
+    fetch('/api/goals')
+      .then(r => r.json())
+      .then(d => {
+        if (d.goal_context) goalsContextRef.current = d.goal_context;
+      })
+      .catch(() => {});
+    // Load custom personas for this team
+    fetch('/api/personas')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d.personas)) {
+          setCustomPersonas(d.personas.filter((p: any) => p.active).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            emoji: p.emoji,
+            color: p.color,
+            description: p.description || '',
+            systemPrompt: p.system_prompt,
+            openingLine: p.opening_line,
+            voicePitch: p.voice_pitch,
+            voiceRate: p.voice_rate,
+            scoring_hints: p.scoring_hints || '',
+          })));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const brief = (SCENARIO_BRIEF as any)[selectedPersona.id] || SCENARIO_BRIEF.default;
+
+  const getSystemPrompt = () => {
+    const base = selectedPersona.systemPrompt;
+    const stageContext: Record<string, string> = {
+      'initial-pitch': `\n[DEAL STAGE: INITIAL PITCH] The prospect has not heard your full pitch yet. They are curious but guarded. They are evaluating whether you are worth their time. Do NOT concede on price. Focus on establishing credibility and qualifying their needs. Ask good discovery questions. Do not rush to present pricing.`,
+      'proposal': `\n[DEAL STAGE: PROPOSAL] The prospect has seen your proposal/pricing. They are evaluating fit and value vs. cost. They will raise specific objections about pricing, terms, and competing options. They want to justify switching or signing. Help them build the business case — be specific about ROI and risk reversal.`,
+      'negotiation': `\n[DEAL STAGE: NEGOTIATION] The prospect is actively negotiating. They want concessions — price, delivery, terms, exclusivity. They will push hard and may use pressure tactics. Do NOT cave to demands without getting something in return. Every concession should be conditional. Trade value, don't give things away for free.`,
+      'renewal': `\n[DEAL STAGE: RENEWAL] This is a retention situation. The prospect may be comfortable but has likely already decided to leave or stay. Your job is to understand their current situation, acknowledge any past issues, and make a compelling case for staying. Acknowledge their current pain points. Don't assume loyalty.`,
+    };
+    const difficultyMod: Record<string, string> = {
+      'easy': `\n[DIFFICULTY: EASY] The prospect is warm and receptive. They want this to work. Objections are mild and easily addressed. They will agree to next steps if you present a clear path forward. This is a cooperative conversation.`,
+      'challenging': `\n[DIFFICULTY: CHALLENGING] The prospect is realistic and skeptical. They ask fair questions and push back on things that don't make sense. You must earn their trust through good answers, not charm. Respond with substance.`,
+      'intense': `\n[DIFFICULTY: INTENSE] The prospect is aggressive, demanding, and uses pressure tactics. They will interrupt, issue ultimatums, and try to make you feel desperate. Do NOT show desperation. Stay composed. They may say "I have other options" or make extreme demands. Your job is to match their intensity with calm confidence and redirect to real value.`,
+    };
+    return base + (stageContext[dealStage] || '') + (difficultyMod[difficulty] || '');
+  };
+
+  const getBrief = () => {
+    const base = (SCENARIO_BRIEF as any)[selectedPersona.id] || SCENARIO_BRIEF.default;
+    const stageObjectives: Record<string, string> = {
+      'initial-pitch': "Capture attention and establish credibility — qualify the prospect's needs before presenting anything. Focus on discovery.",
+      'proposal': "Address the proposal evaluation — help them see clear value vs. cost. Handle pricing objections with ROI framing.",
+      'negotiation': "Navigate concessions smartly — trade value for what matters, don't give things away free. Find the actual objection behind the pressure.",
+      'renewal': "Understand why they might leave and make a compelling case to stay — acknowledge real issues and propose a path forward.",
+    };
+    return { ...base, dealObjective: stageObjectives[dealStage] || base.dealObjective };
+  };
+
+  const getOpeningLine = () => {
+    const stageOpenings: Record<string, string> = {
+      'initial-pitch': selectedPersona.openingLine,
+      'proposal': `Thanks for sending that over. I've had a chance to look it over and I have some questions — some of the pricing is higher than what I expected. Can we walk through it?`,
+      'negotiation': `Okay, I've got leadership involved and they have concerns. If we're going to move forward, we need to talk about what you can actually give us here. What's flex?`,
+      'renewal': `I appreciate you reaching out about renewing, but I'd be lying if I said everything was great this year. We need to talk about what's changed.`,
+    };
+    return stageOpenings[dealStage] || selectedPersona.openingLine;
+  };
+
+  const brief = getBrief();
 
   const sendToGroq = async (userText: string) => {
     setStatus('thinking');
@@ -411,13 +534,15 @@ export default function PracticePage() {
     setCallSeconds(0);
     setMessages([]);
     setStatus('idle');
-    conversationRef.current = [{ role: 'system', content: selectedPersona.systemPrompt }];
+    const goalContext = goalsContextRef.current || '';
+    const opening = getOpeningLine();
+    conversationRef.current = [{ role: 'system', content: getSystemPrompt() + (goalContext ? '\n\n' + goalContext : '') }];
     timerRef.current = setInterval(() => setCallSeconds(s => s + 1), 1000);
     setStatus('speaking');
     speakingRef.current = true;
-    speak(selectedPersona.openingLine, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
-    setMessages([{ role: 'assistant', content: selectedPersona.openingLine }]);
-    conversationRef.current.push({ role: 'assistant', content: selectedPersona.openingLine });
+    speak(opening, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
+    setMessages([{ role: 'assistant', content: opening }]);
+    conversationRef.current.push({ role: 'assistant', content: opening });
   };
 
   const endCall = async () => {
@@ -432,8 +557,9 @@ export default function PracticePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript,
-          scenarioName: selectedPersona.name,
+          scenarioName: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,
           durationSeconds: callSeconds,
+          scoringHints: (selectedPersona as any).scoring_hints || '',
         }),
       });
       if (!res.ok) throw new Error('Analysis failed');
@@ -447,7 +573,9 @@ export default function PracticePage() {
           'x-user-id': currentUser?.id || '',
         },
         body: JSON.stringify({
-          scenario_name: selectedPersona.name,
+          scenario_name: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,
+          deal_stage: dealStage,
+          difficulty_level: difficulty,
           transcript: conversationRef.current.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`),
           scores: data.analysis,
           coaching_tips: data.analysis.coachingTips,
@@ -492,19 +620,21 @@ export default function PracticePage() {
         </header>
         {/* ── SETUP PHASE ── */}
         {phase === 'setup' && (
-          <div style={{ padding: 32, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
+          <div className="practice-grid-setup" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
             {/* Left: Setup */}
             <Card>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 20 }}>Scenario Setup</div>
               <Select
                 label="Persona"
                 value={selectedPersona.id}
-                onChange={v => setSelectedPersona(ALL_PERSONAS.find(p => p.id === v) || ALL_PERSONAS[0])}
-                options={ALL_PERSONAS.map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
+                onChange={v => {
+                  const merged = [...ALL_PERSONAS, ...customPersonas];
+                  setSelectedPersona(merged.find(p => p.id === v) || merged[0]);
+                }}
+                options={[...ALL_PERSONAS, ...customPersonas].map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
               />
-              <Select label="Industry" value="beer-distribution" onChange={() => {}} options={[{ value: 'beer-distribution', label: 'Beer Distribution' }]} />
-              <Select label="Deal Stage" value="initial-pitch" onChange={() => {}} options={[{ value: 'initial-pitch', label: 'Initial Pitch' }, { value: 'proposal', label: 'Proposal Stage' }, { value: 'negotiation', label: 'Negotiation' }, { value: 'renewal', label: 'Renewal' }]} />
-              <Select label="Difficulty" value="challenging" onChange={() => {}} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
+              <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={[{ value: 'initial-pitch', label: 'Initial Pitch' }, { value: 'proposal', label: 'Proposal Stage' }, { value: 'negotiation', label: 'Negotiation' }, { value: 'renewal', label: 'Renewal' }]} />
+              <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
               <button
                 onClick={launchCall}
                 style={{ width: '100%', marginTop: 8, padding: '14px', background: '#D4860A', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
@@ -549,7 +679,7 @@ export default function PracticePage() {
 
         {/* ── LIVE CALL PHASE ── */}
         {phase === 'call' && (
-          <div style={{ padding: 32, display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: 24, alignItems: 'start' }}>
+          <div className="practice-grid-call" style={{ padding: 32, display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: 24, alignItems: 'start' }}>
             {/* Left: Compact brief */}
             <Card style={{ padding: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Scenario Brief</div>
@@ -668,7 +798,7 @@ export default function PracticePage() {
         {/* ── REVIEW PHASE ── */}
         {phase === 'review' && (
           <div style={{ padding: 32 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
+            <div className="practice-grid-review" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
               {/* Left: Score + transcript */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Score header */}
@@ -778,11 +908,11 @@ export default function PracticePage() {
       <style>{`
         @media (min-width: 769px) {
           .hamburger-btn { display: block !important; }
-          .main-content { margin-left: 0 !important; }
+          .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
         }
         @media (max-width: 768px) {
           .hamburger-btn { display: block !important; }
-          .main-content { margin-left: 0 !important; }
+          .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
         }
       `}</style>
     </div>

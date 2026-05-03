@@ -10,6 +10,7 @@ export interface Persona {
   openingLine: string;
   voicePitch: number;
   voiceRate: number;
+  scoring_hints?: string; // custom personas only
 }
 
 export const PERSONAS: Persona[] = [

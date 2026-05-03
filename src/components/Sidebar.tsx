@@ -1,7 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 const NAV_ITEMS = [
   { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
   { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
@@ -9,11 +7,10 @@ const NAV_ITEMS = [
   { emoji: '📊', label: 'Reviews', id: 'reviews', href: '/dashboard/reviews' },
   { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
   { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
+  { emoji: '🎯', label: 'My Team', id: 'manager', href: '/dashboard/manager' },
 ];
 
-export default function Sidebar({ active }: { active: string }) {
-  const router = useRouter();
-
+function InlineSidebar({ active }: { active: string }) {
   return (
     <aside style={{ width: 220, background: '#13151F', minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '20px 0', borderRight: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -22,22 +19,26 @@ export default function Sidebar({ active }: { active: string }) {
       </div>
       <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {NAV_ITEMS.map(item => (
-          <button
+          <a
             key={item.id}
-            onClick={() => { if (item.href) router.push(item.href); }}
+            href={item.href}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 8, border: 'none', cursor: 'pointer', width: '100%',
+              borderRadius: 8, width: '100%',
               background: active === item.id ? 'rgba(212,134,10,0.15)' : 'transparent',
               color: active === item.id ? '#FAC765' : 'rgba(255,255,255,0.5)',
-              fontSize: 14, fontWeight: 500, textAlign: 'left', transition: 'all 0.15s',
+              fontSize: 13, fontWeight: 500, textDecoration: 'none', transition: 'all 0.15s',
             }}
           >
             <span style={{ fontSize: 16 }}>{item.emoji}</span>
             <span>{item.label}</span>
-          </button>
+          </a>
         ))}
       </nav>
     </aside>
   );
+}
+
+export default function InlineSidebarComp({ active }: { active: string }) {
+  return <InlineSidebar active={active} />;
 }

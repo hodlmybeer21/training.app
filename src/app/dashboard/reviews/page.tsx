@@ -126,27 +126,34 @@ function SessionCard({ session, selected, onSelect }: { session: Session; select
   const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
-    <button onClick={onSelect} style={{
-      width: '100%', background: selected ? `${session.objection_handling ? '#D4860A' : '#D4860A'}15` : '#fff',
-      border: `1.5px solid ${selected ? '#D4860A' : '#e5e7eb'}`,
-      borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
-      transition: 'all 0.15s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: 10, background: selected ? '#D4860A' : '#F3F4F6',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20, fontWeight: 800, color: selected ? '#fff' : '#374151', flexShrink: 0,
-        }}>
-          {session.overall_score ?? '--'}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <button onClick={onSelect} style={{
+        width: '100%', background: selected ? '#FAFAF8' : '#fff',
+        border: `1.5px solid ${selected ? '#D4860A' : '#e5e7eb'}`,
+        borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+        transition: 'all 0.15s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 10, background: selected ? '#D4860A' : '#F3F4F6',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, fontWeight: 800, color: selected ? '#fff' : '#374151', flexShrink: 0,
+          }}>
+            {session.overall_score ?? '--'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.scenario_name}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>{dateStr} · {session.duration_seconds ? `${Math.floor(session.duration_seconds / 60)}m ${session.duration_seconds % 60}s` : '--'}</div>
+          </div>
+          <div style={{ fontSize: 16 }}>{selected ? '▲' : '▼'}</div>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.scenario_name}</div>
-          <div style={{ fontSize: 11, color: '#9ca3af' }}>{dateStr} · {session.duration_seconds ? `${Math.floor(session.duration_seconds / 60)}m ${session.duration_seconds % 60}s` : '--'}</div>
+      </button>
+      {selected && (
+        <div style={{ padding: '12px 0 4px' }}>
+          <DrillDownView session={session} />
         </div>
-        <div style={{ fontSize: 16 }}>{selected ? '◀' : '▶'}</div>
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
@@ -188,7 +195,7 @@ function DrillDownView({ session }: { session: Session }) {
 
       {/* Strengths + Opportunities */}
       {((session.strengths?.length || session.opportunities?.length) ? true : false) && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="dash-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {session.strengths?.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>✓ Strengths</div>
@@ -302,14 +309,14 @@ export default function ReviewsPage() {
         <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
       )}
 
-      <div style={{ flex: 1, overflow: 'auto' }} className="main-content">
+      <div style={{ flex: 1, overflow: 'auto' }} className="reviews-main-content">
         {/* Header */}
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>⭐ Session Reviews</div>
         </header>
 
-        <div style={{ padding: 28, display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, alignItems: 'start' }}>
+        <div className="reviews-main-grid" style={{ padding: 28, display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, alignItems: 'start' }}>
           {/* Left: session list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
@@ -330,8 +337,8 @@ export default function ReviewsPage() {
             ))}
           </div>
 
-          {/* Right: drill-down */}
-          <div>
+          {/* Right: drill-down — desktop only */}
+          <div className="reviews-detail-desktop">
             {selected ? (
               <DrillDownView session={selected} />
             ) : (
@@ -356,6 +363,7 @@ export default function ReviewsPage() {
           div[style*="grid-template-columns: 320px"] {
             grid-template-columns: 1fr !important;
           }
+          .reviews-detail-desktop { display: none !important; }
         }
       `}</style>
     </div>

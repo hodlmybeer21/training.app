@@ -4,7 +4,7 @@ export const runtime = 'edge';
 
 export async function POST(req: NextRequest) {
   try {
-    const { transcript, scenarioName, durationSeconds } = await req.json();
+    const { transcript, scenarioName, durationSeconds, scoringHints } = await req.json();
 
     if (!transcript || !Array.isArray(transcript) || transcript.length === 0) {
       return NextResponse.json({ error: 'Transcript required' }, { status: 400 });
@@ -24,9 +24,13 @@ export async function POST(req: NextRequest) {
       })
       .join('\n');
 
+    const scenarioContext = scoringHints
+      ? `\n\nPERSONA-SPECIFIC SCORING CONTEXT:\n${scoringHints}\n\nUse these specific criteria when evaluating the salesperson's performance in this scenario.`
+      : '';
+
     const scoringPrompt = `You are an expert sales coach analyzing a recorded sales roleplay. Your job is to give honest, specific, actionable feedback.
 
-SCENARIO: ${scenarioName || 'General sales call'}
+SCENARIO: ${scenarioName || 'General sales call'}${scenarioContext}
 DURATION: ${durationSeconds ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` : 'Unknown'}
 
 TRANSCRIPT:
