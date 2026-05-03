@@ -437,8 +437,6 @@ export default function PracticePage() {
       .catch(() => {});
   }, []);
 
-  const brief = (SCENARIO_BRIEF as any)[selectedPersona.id] || SCENARIO_BRIEF.default;
-
   const getSystemPrompt = () => {
     const base = selectedPersona.systemPrompt;
     const stageContext: Record<string, string> = {
