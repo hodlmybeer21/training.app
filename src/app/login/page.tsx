@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const supabase = createClient();
@@ -18,15 +17,13 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) { setError(error.message); setLoading(false); return; }
-      router.push('/dashboard');
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); setLoading(false); return; }
-      router.push('/dashboard');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
     }
+    router.push('/dashboard');
     setLoading(false);
   };
 
@@ -71,17 +68,12 @@ export default function LoginPage() {
             disabled={loading}
             style={{ width: '100%', padding: '14px', background: '#D4860A', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: '0.04em' }}
           >
-            {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
+            {loading ? 'Please wait...' : 'Sign In'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-            style={{ background: 'none', border: 'none', color: '#D4860A', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-          </button>
+        <div style={{ textAlign: 'center', marginTop: 20, color: '#6b7280', fontSize: 12, lineHeight: 1.6 }}>
+          No account? Contact your administrator to get access.
         </div>
       </div>
     </div>
