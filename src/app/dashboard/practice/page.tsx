@@ -5,6 +5,8 @@ import { User } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/client';
 import { PERSONAS, Persona } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
+import { CATEGORIES } from '@/lib/categories';
+import { getPersonasForCategory } from '@/lib/personas/index';
 
 const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
 
@@ -371,7 +373,12 @@ function Select({ label, value, onChange, options }: { label: string; value: str
 
 export default function PracticePage() {
   const [phase, setPhase] = useState<'setup' | 'call' | 'review'>('setup');
-  const [selectedPersona, setSelectedPersona] = useState<Persona>(ALL_PERSONAS[0]);
+  const [selectedCategory, setSelectedCategory] = useState<string>('beer-distribution');
+  const [selectedPersona, setSelectedPersona] = useState<Persona>(() => {
+    // Default to first beer-distribution persona on load
+    const cats = getPersonasForCategory('beer-distribution');
+    return cats[0] || ALL_PERSONAS[0];
+  });
   const [dealStage, setDealStage] = useState<'initial-pitch'|'proposal'|'negotiation'|'renewal'>('initial-pitch');
   const [difficulty, setDifficulty] = useState<'easy'|'challenging'|'intense'>('challenging');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -622,14 +629,39 @@ export default function PracticePage() {
             {/* Left: Setup */}
             <Card>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 20 }}>Scenario Setup</div>
+              {/* Category selector */}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Category</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedCategory(cat.id);
+                        const personas = getPersonasForCategory(cat.id);
+                        if (personas.length > 0) setSelectedPersona(personas[0]);
+                      }}
+                      style={{
+                        padding: '8px 10px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        background: selectedCategory === cat.id ? cat.color + '20' : '#f3f4f6',
+                        color: selectedCategory === cat.id ? cat.color : '#6b7280',
+                        borderLeft: selectedCategory === cat.id ? `3px solid ${cat.color}` : '3px solid transparent',
+                        textAlign: 'left', transition: 'all 0.15s',
+                      }}
+                    >
+                      <span>{cat.emoji}</span> {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <Select
                 label="Persona"
                 value={selectedPersona.id}
                 onChange={v => {
-                  const merged = [...ALL_PERSONAS, ...customPersonas];
-                  setSelectedPersona(merged.find(p => p.id === v) || merged[0]);
+                  const personas = getPersonasForCategory(selectedCategory);
+                  setSelectedPersona(personas.find(p => p.id === v) || personas[0] || ALL_PERSONAS[0]);
                 }}
-                options={[...ALL_PERSONAS, ...customPersonas].map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
+                options={getPersonasForCategory(selectedCategory).map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
               />
               <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={[{ value: 'initial-pitch', label: 'Initial Pitch' }, { value: 'proposal', label: 'Proposal Stage' }, { value: 'negotiation', label: 'Negotiation' }, { value: 'renewal', label: 'Renewal' }]} />
               <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
