@@ -26,12 +26,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 });
     }
 
+    // Get team names separately (no FK relationship in DB)
+    const { data: allTeams } = await sbAdmin.from('teams').select('id, name');
+    const teamMap: Record<string, string> = {};
+    (allTeams || []).forEach(t => { teamMap[t.id] = t.name; });
+
     const { data: allProfiles } = await sbAdmin
       .from('profiles')
-      .select('*, teams(name)')
+      .select('*')
       .order('created_at', { ascending: false });
 
-    return NextResponse.json({ profiles: allProfiles || [] });
+    const profilesWithTeams = (allProfiles || []).map((p: any) => ({
+      ...p,
+      teams: p.team_id ? { name: teamMap[p.team_id] || p.team_id } : null,
+    }));
+
+    return NextResponse.json({ profiles: profilesWithTeams });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
