@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const { data: allProfiles } = await sbAdmin
       .from('profiles')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('updated_at', { ascending: false });
 
     const profilesWithTeams = (allProfiles || []).map((p: any) => ({
       ...p,
