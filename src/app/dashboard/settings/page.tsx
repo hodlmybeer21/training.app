@@ -81,11 +81,9 @@ export default function SettingsPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
-        @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
-          .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; overflow-x: hidden !important; }
-          .settings-content { padding: 16px 12px !important; max-width: 100% !important; }
-        }
+        .hamburger-btn { display: block !important; }
+        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; overflow-x: hidden !important; }
+        .settings-content { padding: 16px 12px !important; max-width: 100% !important; }
         @media (min-width: 769px) {
           .hamburger-btn { display: none !important; }
         }
