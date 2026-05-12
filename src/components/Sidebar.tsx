@@ -1,6 +1,6 @@
 'use client';
 
-const NAV_ITEMS = [
+const NAV_ITEMS_ADMIN = [
   { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
   { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
   { emoji: '👥', label: 'Personas', id: 'personas', href: '/dashboard/personas' },
@@ -8,7 +8,10 @@ const NAV_ITEMS = [
   { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
   { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
   { emoji: '🎯', label: 'My Team', id: 'manager', href: '/dashboard/manager' },
+  { emoji: '🛡️', label: 'Admin', id: 'admin', href: '/dashboard/admin' },
 ];
+
+const NAV_ITEMS = NAV_ITEMS_ADMIN;
 
 function InlineSidebar({ active }: { active: string }) {
   return (
