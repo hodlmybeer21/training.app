@@ -3,12 +3,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/client';
-import { PERSONAS, Persona } from '@/lib/personas';
-import { NH_PERSONAS } from '@/lib/personas-nh';
+import { Persona } from '@/lib/personas';
 import { CATEGORIES } from '@/lib/categories';
-import { getPersonasForCategory } from '@/lib/personas/index';
+import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 
-const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
+// Build ALL_PERSONAS from every category so the selector always has a complete list
+function buildAllPersonas() {
+  const seen = new Set<string>();
+  const result: Persona[] = [];
+  for (const personas of Object.values(PERSONA_BY_CATEGORY)) {
+    for (const p of personas) {
+      if (!seen.has(p.id)) { seen.add(p.id); result.push(p); }
+    }
+  }
+  return result;
+}
+const ALL_PERSONAS: Persona[] = buildAllPersonas();
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 type Status = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -293,6 +303,347 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
       'Promise no bad-account placement — ever',
     ],
   },
+
+  // ─── RETAIL PERSONAS ───────────────────────────────────────────────
+  'retail-hesitant-customer': {
+    prospectName: 'Linda P.',
+    prospectTitle: 'The Hesitant Shopper',
+    dealObjective: 'Build trust and rapport with a cautious buyer — they need to feel understood before committing. Ask good questions, listen actively, and address their specific concerns.',
+    objections: [
+      '"I\'ve bought things like this before and regretted it"',
+      'Not ready to commit — needs more reassurance',
+      'Asks about durability and whether it\'s worth the price',
+    ],
+    winConditions: [
+      'Build genuine rapport before pushing the sale',
+      'Address their specific fear with facts',
+      'Secure a clear next step — buy today or return later',
+    ],
+  },
+  'retail-returns-dispute': {
+    prospectName: 'Don M.',
+    prospectTitle: 'The Returns Battle',
+    dealObjective: 'Handle a returns dispute professionally — policy is clear but the customer is emotional. De-escalate, show empathy, find a resolution that protects the store without creating a scene.',
+    objections: [
+      '"I spent $300 here — I know I did"',
+      'Threatens to escalate to manager',
+      'Uses emotional leverage: "I\'m a loyal customer"',
+    ],
+    winConditions: [
+      'De-escalate without making promises you can\'t keep',
+      'Offer a clear resolution path (store credit, manager approval)',
+      'Preserve the customer relationship even if denying the return',
+    ],
+  },
+  'retail-product-question': {
+    prospectName: 'Tom R.',
+    prospectTitle: 'The Technical Question',
+    dealObjective: 'Answer detailed technical questions accurately — they\'ve done their research and will challenge vague answers. Demonstrate real product knowledge and help them make an informed decision.',
+    objections: [
+      'Asks about electrical circuit compatibility',
+      'Questions the return policy on opened appliances',
+      'Challenges answers that sound rehearsed',
+    ],
+    winConditions: [
+      'Answer technical questions accurately — don\'t guess',
+      'Help them understand what they actually need',
+      'Get agreement on the right product for their situation',
+    ],
+  },
+  'retail-competitor-price-match': {
+    prospectName: 'Sandra L.',
+    prospectTitle: 'The Price Match Hunter',
+    dealObjective: 'Honor a competitor price match professionally — they have the ad and are ready to buy. Match the price, close the sale, and try to build additional value beyond just price.',
+    objections: [
+      'Has competitor ad pulled up — expects immediate match',
+      'Won\'t pay full price, will leave if not matched',
+      'Only interested in the price, not additional value',
+    ],
+    winConditions: [
+      'Match the price quickly — don\'t拖延',
+      'Close on the spot with the matched price',
+      'Try to add value: warranty, accessories, delivery',
+    ],
+  },
+  'retail-browsing-no-buy': {
+    prospectName: 'Karen W.',
+    prospectTitle: 'The High-Value Browser',
+    dealObjective: 'Build relationship with a high-value browser — they can spend $500-$2000 but won\'t buy today. Be consultative, ask about their needs, and make them want to come back.',
+    objections: [
+      '"I\'m looking — I\'m not ready today"',
+      'Avoids pushy salespeople',
+      'Will comparison shop before committing',
+    ],
+    winConditions: [
+      'Build genuine rapport without pressure',
+      'Understand their specific situation and needs',
+      'Get them to commit to coming back',
+    ],
+  },
+  'retail-employee-conflict': {
+    prospectName: 'Manager Rachel',
+    prospectTitle: 'Employee Conflict Mediation',
+    dealObjective: 'Mediate between two employees with different work styles whose conflict is affecting customers. Stay calm, don\'t assign blame, and find a working arrangement both can commit to.',
+    objections: [
+      'Two different stories about what happened',
+      'Conflict has started affecting customer interactions',
+      'Rest of the team is picking up on the tension',
+    ],
+    winConditions: [
+      'Get both perspectives without interrupting',
+      'Find specific behavioral changes both can commit to',
+      'Establish a path forward that doesn\'t require choosing sides',
+    ],
+  },
+
+  // ─── HR PERSONAS ──────────────────────────────────────────────────
+  'hr-raise-conversation': {
+    prospectName: 'Marcus T.',
+    prospectTitle: 'The Raise Ask',
+    dealObjective: 'Navigate a direct, prepared raise conversation — they have market data and a specific target. Don\'t deflect, don\'t over-promise, and give them a clear path forward or a honest dead-end.',
+    objections: [
+      '"I\'m 18% below market — I have the data"',
+      'Won\'t accept deflection or vague promises',
+      'Prepared to have a tough conversation',
+    ],
+    winConditions: [
+      'Acknowledge the data without getting defensive',
+      'Give a clear, specific path or an honest dead-end',
+      'Preserve the relationship regardless of outcome',
+    ],
+  },
+  'hr-performance-coaching': {
+    prospectName: 'Director Diane',
+    prospectTitle: 'Performance Improvement Plan',
+    dealObjective: 'Deliver a formal PIP with empathy and clarity — the data is clear but the employee is a human being. Be direct, specific about what needs to change, and genuinely try to help them succeed.',
+    objections: [
+      'Employee may be defensive or deny the issues',
+      'Long tenure makes the conversation harder',
+      'Consequences must be stated clearly',
+    ],
+    winConditions: [
+      'Be direct and factual — don\'t apologize for the conversation',
+      'State specific, measurable improvement targets',
+      'Show genuine care while being clear about consequences',
+    ],
+  },
+  'hr-team-conflict': {
+    prospectName: 'Manager Pat',
+    prospectTitle: 'Team Conflict Mediation',
+    dealObjective: 'Mediate between two employees with clashing work styles — one fast-paced and overstepping, one methodical and feeling disrespected. Focus on future behavior, not past blame.',
+    objections: [
+      'Both have different stories about incidents',
+      'Conflict is affecting team morale and customers',
+      'Neither wants to change their fundamental style',
+    ],
+    winConditions: [
+      'Focus on working arrangements, not who was right',
+      'Get each person to commit to one specific behavioral change',
+      'Establish check-in cadence to track progress',
+    ],
+  },
+  'hr-wrongful-termination': {
+    prospectName: 'Attorney Roberts',
+    prospectTitle: 'Wrongful Termination Claim',
+    dealObjective: 'Respond to a wrongful termination claim with legal caution — you know the termination was justified but must not say anything that could be used against the company. Be warm, factual, and refer to counsel.',
+    objections: [
+      'Former employee has a lawyer\'s letter',
+      'Legal sensitivity — can\'t admit fault',
+      'Must redirect without being cold',
+    ],
+    winConditions: [
+      'Respond professionally without admitting liability',
+      'Redirect to legal counsel appropriately',
+      'Document the conversation thoroughly',
+    ],
+  },
+  'hr-hostile-workplace': {
+    prospectName: 'HR Director Maria',
+    prospectTitle: 'Hostile Work Environment Report',
+    dealObjective: 'Receive a workplace harassment complaint with empathy and proper process — the employee is scared and has been documenting for months. Take it seriously, explain the process, and protect from retaliation.',
+    objections: [
+      'Employee is emotional and scared of retaliation',
+      'Supervisor knew and didn\'t act',
+      'Documentation may be incomplete',
+    ],
+    winConditions: [
+      'Make the employee feel heard and protected',
+      'Explain the process clearly without over-promising',
+      'Document the complaint and next steps immediately',
+    ],
+  },
+
+  // ─── REAL ESTATE PERSONAS ─────────────────────────────────────────
+  're-buyer-first-home': {
+    prospectName: 'Amy & Chris K.',
+    prospectTitle: 'Nervous First-Time Buyer',
+    dealObjective: 'Guide a first-time buyer through a complex, emotional process — they feel lost and anxious. Be their calm, confident expert. Answer questions, set expectations, and protect them from surprises.',
+    objections: [
+      '"Why does this take so long?" — confusion about process',
+      'Inspection findings create uncertainty',
+      'Appraisal concerns and whether they can back out',
+    ],
+    winConditions: [
+      'Explain the process in plain English',
+      'Set clear expectations at every step',
+      'Make them feel informed and confident, not overwhelmed',
+    ],
+  },
+  're-seller-price-expectation': {
+    prospectName: 'Gary M.',
+    prospectTitle: 'The Unrealistic Seller',
+    dealObjective: 'Bring a delusional seller back to market reality with empathy — they\'ve watched HGTV and think their kitchen remodel is worth 30% more. Use data, not dismissiveness, to recalibrate their expectations.',
+    objections: [
+      'Cites their own improvements as justification for higher price',
+      'Compares their home favorably to every comparable',
+      'Won\'t accept that the market has softened',
+    ],
+    winConditions: [
+      'Present comps with empathy, not condescension',
+      'Connect specific improvements to actual market response',
+      'Get them to agree on a price that will actually attract offers',
+    ],
+  },
+  're-investor-deal': {
+    prospectName: 'Jennifer V.',
+    prospectTitle: 'The Real Estate Investor',
+    dealObjective: 'Work with a transactional investor who knows the numbers cold — they\'ve done 40+ deals and won\'t pay retail. Be direct, know your numbers, and don\'t waste their time with fluff.',
+    objections: [
+      'Asks for seller motivation and financial details',
+      'Wants maximum concessions on a fast close',
+      'Will walk away if the deal doesn\'t pencil',
+    ],
+    winConditions: [
+      'Know the numbers — don\'t guess or estimate',
+      'Structure deals that work for both sides',
+      'Build a relationship that leads to more deals',
+    ],
+  },
+  're-mortgage-preapproval': {
+    prospectName: 'Loan Officer Brian',
+    prospectTitle: 'Confused Buyer in Pre-Approval',
+    dealObjective: 'Explain the mortgage pre-approval process clearly to a confused buyer — they think pre-approved means approved. Set expectations, explain rate timing, and help them understand what they actually qualify for.',
+    objections: [
+      '"My agent said I was approved — what\'s the difference?"',
+      'Rate quoted in February isn\'t available in April',
+      'Confused about documentation requirements',
+    ],
+    winConditions: [
+      'Explain pre-qual vs pre-approval vs full approval clearly',
+      'Set realistic expectations about rate locks',
+      'Help them understand what they need to provide and when',
+    ],
+  },
+  're-home-inspection': {
+    prospectName: 'Buyer Agent Lisa',
+    prospectTitle: 'Home Inspection Conflict',
+    dealObjective: 'Negotiate inspection findings professionally — some are legitimate leverage, others are normal wear and tear on a 25-year-old house. Help the buyer separate real issues from noise and present a fair request.',
+    objections: [
+      'Buyer wants $8K in credits for a 25-year-old house',
+      'Seller may push back on "normal" findings',
+      'Buyer is anxious about hidden problems',
+    ],
+    winConditions: [
+      'Separate legitimate leverage from normal wear-and-tear',
+      'Present a fair, data-driven negotiation position',
+      'Keep the deal together while addressing real issues',
+    ],
+  },
+  're-closing-delay': {
+    prospectName: 'Agent Tom',
+    prospectTitle: 'Closing Day Disaster',
+    dealObjective: 'Manage a closing delay crisis with a buyer who has no flexibility — their lease ends Friday, movers are booked, employer expects them to start in two weeks. Fight for them while setting realistic expectations.',
+    objections: [
+      '"How does this happen? Who\'s responsible?"',
+      'Logistics are now cascading — rental, movers, new job',
+      'Stress level is high, patience is low',
+    ],
+    winConditions: [
+      'Take ownership and fight for the buyer internally',
+      'Give honest timeline assessment — no false promises',
+      'Problem-solve the logistics: lease extension, mover reschedule',
+    ],
+  },
+
+  // ─── INSURANCE PERSONAS ────────────────────────────────────────────
+  'ins-auto-claim': {
+    prospectName: 'Policyholder Julie',
+    prospectTitle: 'First-Time Auto Claim',
+    dealObjective: 'Guide a confused, anxious policyholder through their first claim — they don\'t know the process, worry about their premium, and don\'t know how to talk to the other driver\'s insurance. Calm, clear, and helpful.',
+    objections: [
+      '"Do I talk to their insurance or mine?"',
+      'Worried premium will go up after 6 years of clean record',
+      'Confused about what documentation is needed',
+    ],
+    winConditions: [
+      'Explain the process in plain language',
+      'Address the premium concern honestly',
+      'Make them feel supported, not like a claim number',
+    ],
+  },
+  'ins-policy-renewal': {
+    prospectName: 'Account Manager Carol',
+    prospectTitle: 'Renewal Rate Shock',
+    dealObjective: 'Retain a client who just saw their renewal go up 40% and has two competitor quotes in hand — they want to stay but not at any price. Know your product, know the market, and make a compelling case.',
+    objections: [
+      '"I\'ve been with you 8 years — loyalty means nothing?"',
+      'Already has two competing quotes',
+      'Won\'t accept "market conditions" without pushback',
+    ],
+    winConditions: [
+      'Acknowledge the increase is significant',
+      'Present a clear value case for staying',
+      'Make a meaningful offer if possible — or an honest dead-end',
+    ],
+  },
+  'ins-liability-claim': {
+    prospectName: 'Small Business Owner Marcus',
+    prospectTitle: 'Business Liability Dispute',
+    dealObjective: 'Work with a policyholder disputing a denied liability claim — they have photos they think prove their case. Navigate the appeals process, set expectations, and advocate for them within the system.',
+    objections: [
+      '"I have photos showing the damage happened during our work"',
+      'Frustrated after 5 years of premium payments',
+      'Wants to understand the formal appeals process',
+    ],
+    winConditions: [
+      'Acknowledge their frustration and their evidence',
+      'Explain the appeals process clearly',
+      'Advocate for them while managing expectations',
+    ],
+  },
+  'ins-health-benefits': {
+    prospectName: 'HR Director Sandra',
+    prospectTitle: 'Health Benefits Review',
+    dealObjective: 'Help an HR director at a 75-person company understand plan options — PPO vs HDHP with HSA, costs vs coverage, impact on different employee demographics. Be consultative, not transactional.',
+    objections: [
+      'Confused about PPO vs HDHP with HSA',
+      'Younger employees vs. older employees with families have different needs',
+      'Worried about making a decision that harms employees',
+    ],
+    winConditions: [
+      'Explain options in plain language with real examples',
+      'Help them understand the employee impact by demographic',
+      'Position yourself as a consultant, not just a salesperson',
+    ],
+  },
+  'ins-disability-claim': {
+    prospectName: 'Store Manager David',
+    prospectTitle: 'Short-Term Disability Fight',
+    dealObjective: 'Help an employee whose STD claim is stalled while managing the store and the HR process simultaneously — the employee has kids and no income. Push internally while giving the manager something useful to tell them.',
+    objections: [
+      'Employee\'s income has stopped after 2 weeks out',
+      'Insurance company keeps requesting information already submitted',
+      'Store manager is caught between employee and insurer',
+    ],
+    winConditions: [
+      'Give the manager concrete actions to take',
+      'Push HR/benefits internally on the employee\'s behalf',
+      'Keep the employee informed and prevent escalation',
+    ],
+  },
+
+  // Generic sales personas (difficult-customer, new-account-pitch, hostile-prospect)
+  // are already defined at the top of this object — no duplicates needed.
 };
 
 
