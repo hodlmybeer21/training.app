@@ -82,11 +82,8 @@ export default function SettingsPage() {
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
         .hamburger-btn { display: block !important; }
-        @media (min-width: 769px) {
-          .hamburger-btn { display: none !important; }
-        }
+        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; overflow-x: hidden !important; }
         @media (max-width: 768px) {
-          .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; overflow-x: hidden !important; }
           .settings-content { padding: 16px 12px !important; max-width: 100% !important; }
         }
         input, textarea { color: #1A1208 !important; }
@@ -96,7 +93,7 @@ export default function SettingsPage() {
       </div>
       {mobileMenuOpen && <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />}
 
-      <div style={{ flex: 1, overflow: 'auto', marginLeft: '220px' }} className="main-content">
+      <div style={{ flex: 1, overflow: 'auto', marginLeft: 0 }} className="main-content">
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>⚙️ Settings</div>

@@ -386,6 +386,9 @@ export default function Dashboard() {
       <style>{`
         .hamburger-btn { display: block !important; }
         .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
+        @media (min-width: 769px) {
+          .main-content { margin-left: 0 !important; }
+        }
       `}</style>
     </div>
   );

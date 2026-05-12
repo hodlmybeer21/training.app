@@ -969,7 +969,7 @@ export default function PracticePage() {
         <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
       )}
 
-      <div style={{ flex: 1, overflow: 'auto', marginLeft: '220px' }} className="main-content">
+      <div style={{ flex: 1, overflow: 'auto', marginLeft: 0 }} className="main-content">
         {/* Header with hamburger */}
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
           <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
