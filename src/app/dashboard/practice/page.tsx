@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client';
 import { Persona } from '@/lib/personas';
 import { CATEGORIES } from '@/lib/categories';
 import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
+import { getCategoryById } from '@/lib/categories';
 
 // Build ALL_PERSONAS from every category so the selector always has a complete list
 function buildAllPersonas() {
@@ -1014,7 +1015,7 @@ export default function PracticePage() {
                 }}
                 options={getPersonasForCategory(selectedCategory).map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
               />
-              <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={[{ value: 'initial-pitch', label: 'Initial Pitch' }, { value: 'proposal', label: 'Proposal Stage' }, { value: 'negotiation', label: 'Negotiation' }, { value: 'renewal', label: 'Renewal' }]} />
+              <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={(getCategoryById(selectedCategory)?.dealStages || CATEGORIES[0].dealStages).map(s => ({ value: s.id, label: s.label }))} />
               <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
               <button
                 onClick={launchCall}
