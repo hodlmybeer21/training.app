@@ -65,6 +65,50 @@ export async function POST(req: NextRequest) {
   }
 }
 
+async function sendCredentialsEmail(email: string, password: string, tier: string) {
+  const AGENTMAIL_API_KEY = process.env.AGENTMAIL_API_KEY;
+  if (!AGENTMAIL_API_KEY) {
+    console.log('AgentMail not configured, skipping welcome email');
+    return;
+  }
+
+  const tierLabel = TIER_DISPLAY[tier] || tier;
+  const subject = `Your TrainField AI account is ready`;
+  const text = `Your TrainField AI ${tierLabel} account has been created.
+
+Email: ${email}
+Password: ${password}
+
+Log in at https://training.goodbotai.tech/login
+
+Welcome aboard!
+— TrainField AI`;
+
+  try {
+    const res = await fetch('https://api.agentmail.to/v0/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AGENTMAIL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: [email],
+        subject,
+        text,
+        from: 'accounts@trainfield.ai',
+      }),
+    });
+    const data = await res.json();
+    if (data.id) {
+      console.log(`📧 Welcome email sent to ${email}`);
+    } else {
+      console.log('AgentMail response:', data);
+    }
+  } catch (e: any) {
+    console.error('Failed to send welcome email:', e.message);
+  }
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = session.customer_email || session.customer_details?.email;
   const priceId = session.metadata?.priceId || session.line_items?.data[0]?.price?.id;
@@ -84,11 +128,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Check if user already exists
   const supabase = getSupabaseAdmin();
-
-  // Create auth user with random password
   const tempPassword = generateSecurePassword();
+
+  // Create auth user
   const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
     email,
     password: tempPassword,
@@ -97,19 +140,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   if (authError) {
-    // If user already exists (email conflict), just update their tier
     if (authError.code === 'email_address_already_in_use') {
       console.log('User already exists, updating tier:', email);
-      // Find existing user and update profile
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', tier)
-        .limit(1);
-      
-      // Try to find by email - we can't query auth.users directly
-      // Just log and return - the existing user can log in and see their upgraded access
-      console.log('Existing user logged in after upgrade flow');
       return;
     }
     console.error('Auth user creation error:', authError);
@@ -118,38 +150,25 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const userId = authUser.user!.id;
 
-  // Update profile with tier and role
-  const { error: profileError } = await supabase
+  // Update profile with tier
+  await supabase
     .from('profiles')
-    .update({
-      role: tier,
-      subscription_tier: tier,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ role: tier, subscription_tier: tier })
     .eq('id', userId);
 
-  if (profileError) {
-    console.error('Profile update error:', profileError);
-  }
+  // Send credentials email
+  await sendCredentialsEmail(email, tempPassword, tier);
 
-  console.log(`✅ Created account for ${email} with tier ${TIER_DISPLAY[tier]} (user_id: ${userId})`);
-
-  // TODO: Send welcome email with credentials
-  // For now, log the temp password - in production you'd email this securely
-  console.log(`   Temp password for ${email}: ${tempPassword}`);
+  console.log(`✅ Created account for ${email} (tier: ${TIER_DISPLAY[tier]}) — credentials emailed`);
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-  // For subscription renewals, ensure the profile tier is kept current
   const customerId = invoice.customer as string;
-  const priceId = invoice.lines.data[0]?.price?.id;
-
+  const priceId = (invoice.lines.data[0] as any)?.price?.id;
   if (!priceId) return;
-
   const tier = TIER_ROLE_MAP[priceId];
   if (!tier) return;
-
-  console.log(`📝 Subscription renewal for customer ${customerId}, tier: ${tier}`);
+  console.log(`📝 Renewal for customer ${customerId}, tier: ${TIER_DISPLAY[tier]}`);
 }
 
 function generateSecurePassword(length = 20): string {

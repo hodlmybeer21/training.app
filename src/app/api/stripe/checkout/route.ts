@@ -14,9 +14,9 @@ function getStripe(): Stripe {
 }
 
 const PRICE_IDS: Record<string, string> = {
-  'solo-monthly':  'price_1TWQx5ItqtvZaj2wNbzj7QTH',
-  'small-monthly': 'price_1TWQyBItqtvZaj2wHA2n7Dvm',
-  'team-monthly':   'price_1TWQzEItqtvZaj2wHyT8EdHY',
+  'solo':  'price_1TWQx5ItqtvZaj2wNbzj7QTH',
+  'small': 'price_1TWQyBItqtvZaj2wHA2n7Dvm',
+  'team':  'price_1TWQzEItqtvZaj2wHyT8EdHY',
 };
 
 export async function POST(req: NextRequest) {

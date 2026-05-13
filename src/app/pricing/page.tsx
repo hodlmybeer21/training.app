@@ -96,8 +96,33 @@ export default function PricingPage() {
       return;
     }
 
-    if (!user) {
-      router.push('/login');
+    if (!user && tier.id !== 'free') {
+      // Allow guest checkout for paid tiers — Stripe collects email on its checkout page
+      setLoadingTier(tier.id);
+      try {
+        const baseUrl = window.location.origin;
+        const res = await fetch('/api/stripe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            priceId: tier.id,
+            successUrl: `${baseUrl}/dashboard?upgrade=success`,
+            cancelUrl: `${baseUrl}/pricing`,
+          }),
+        });
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setMessage(data.error || 'Checkout not available.');
+          setLoadingTier(null);
+          return;
+        }
+      } catch (e: any) {
+        setMessage(e.message);
+        setLoadingTier(null);
+        return;
+      }
       return;
     }
 
@@ -106,15 +131,11 @@ export default function PricingPage() {
 
     try {
       const baseUrl = window.location.origin;
-      const { priceId } = tier.stripePriceId
-        ? { priceId: tier.stripePriceId }
-        : { priceId: tier.id };
-
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          priceId: tier.id,
+          priceId: tier.id, // 'solo' | 'small' | 'team'
           email: user.email,
           successUrl: `${baseUrl}/dashboard?upgrade=success`,
           cancelUrl: `${baseUrl}/pricing`,
