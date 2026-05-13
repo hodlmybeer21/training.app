@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
       webhookEmail = session.customer_email || session.customer_details?.email || '';
       console.log('Session ID:', session.id, '| Email:', webhookEmail);
       const startTime = Date.now();
-      await handleCheckoutCompleted(session);
+      try {
+        await handleCheckoutCompleted(session);
+      } catch(e: any) {
+        console.error('handleCheckoutCompleted threw:', e.message, e.stack);
+      }
       console.log('handleCheckoutCompleted took', Date.now() - startTime, 'ms');
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as Stripe.Invoice;
