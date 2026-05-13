@@ -51,11 +51,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
+  let webhookEmail = '';
   try {
     if (event.type === 'checkout.session.completed') {
       console.log('Processing checkout.session.completed event');
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log('Session ID:', session.id, '| Email:', session.customer_email || session.customer_details?.email);
+      webhookEmail = session.customer_email || session.customer_details?.email || '';
+      console.log('Session ID:', session.id, '| Email:', webhookEmail);
       const startTime = Date.now();
       await handleCheckoutCompleted(session);
       console.log('handleCheckoutCompleted took', Date.now() - startTime, 'ms');
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest) {
       await handleInvoicePaymentSucceeded(invoice);
     }
 
-    const response = { received: true, timestamp: Date.now(), version: 'v8', email: session.customer_email || session.customer_details?.email };
+    const response = { received: true, timestamp: Date.now(), version: 'v8', email: webhookEmail };
     return NextResponse.json(response);
   } catch (err: any) {
     console.error('Webhook handler error:', err);
