@@ -43,7 +43,9 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(body, sig, whsec);
+    console.log('Webhook raw body:', body.substring(0, 100));
+    console.log('Has sig:', !!sig, 'Has whsec:', !!whsec, 'whsec value:', whsec ? 'SET' : 'NOT SET');
+    event = getStripe().webhooks.constructEvent(body, sig, whsec!);
   } catch (err: any) {
     console.error('Webhook signature verification failed:', err.message);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
@@ -85,7 +87,7 @@ Welcome aboard!
 — TrainField AI`;
 
   try {
-    const res = await fetch('https://api.agentmail.to/v0/send', {
+    const res = await fetch(`https://api.agentmail.to/v0/inboxes/goodbot@agentmail.to/messages/send`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${AGENTMAIL_API_KEY}`,
@@ -95,7 +97,7 @@ Welcome aboard!
         to: [email],
         subject,
         text,
-        from: 'accounts@trainfield.ai',
+        from: 'goodbot@agentmail.to',
       }),
     });
     const data = await res.json();
@@ -111,7 +113,13 @@ Welcome aboard!
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = session.customer_email || session.customer_details?.email;
-  const priceId = session.metadata?.priceId || session.line_items?.data[0]?.price?.id;
+  const priceId = session.metadata?.priceId || (session.line_items?.data[0] as any)?.price?.id;
+
+  console.log(`Webhook: checkout completed for session ${session.id}`);
+  console.log(`  email: ${email}`);
+  console.log(`  priceId from metadata: ${session.metadata?.priceId}`);
+  console.log(`  priceId from line_items: ${(session.line_items?.data[0] as any)?.price?.id}`);
+  console.log(`  final priceId: ${priceId}`);
 
   if (!email) {
     console.error('No email in checkout session:', session.id);
@@ -150,11 +158,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const userId = authUser.user!.id;
 
-  // Update profile with tier
-  await supabase
+  // Create profile row (FK constraint: profiles.id → auth.users.id)
+  const { error: profileInsertError } = await supabase
     .from('profiles')
-    .update({ role: tier, subscription_tier: tier })
-    .eq('id', userId);
+    .insert({ id: userId, role: tier, subscription_tier: tier });
+
+  if (profileInsertError) {
+    console.error('Profile insert error:', profileInsertError);
+  }
 
   // Send credentials email
   await sendCredentialsEmail(email, tempPassword, tier);

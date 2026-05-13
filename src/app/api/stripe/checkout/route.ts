@@ -43,10 +43,6 @@ export async function POST(req: NextRequest) {
       cancel_url: cancelUrl || `${baseUrl}/pricing`,
       metadata: {
         priceId,
-        ...(email ? { customer_email: email } : {}),
-      },
-      subscription_data: {
-        metadata: { priceId },
       },
     });
 
