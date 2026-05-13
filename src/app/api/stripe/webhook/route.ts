@@ -142,6 +142,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const supabase = getSupabaseAdmin();
+  const tempPassword = generateSecurePassword();
   console.log('Supabase client initialized');
   console.log('Checking user:', email);
   
