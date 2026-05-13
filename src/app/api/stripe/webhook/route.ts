@@ -133,7 +133,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const email = session.customer_email || session.customer_details?.email;
   console.log('  email:', email);
   const priceId = session.metadata?.priceId || (session.line_items?.data[0] as any)?.price?.id;
-  console.log('  priceId:', priceId);
+  console.log('  priceId from metadata:', session.metadata?.priceId);
+  console.log('  priceId from line_items:', (session.line_items?.data[0] as any)?.price?.id);
+  console.log('  FINAL priceId:', priceId);
 
   if (!email) {
     console.error('No email in checkout session:', session.id);
@@ -147,6 +149,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const tier = TIER_ROLE_MAP[priceId as string];
+  console.log('  TIER_ROLE_MAP keys:', Object.keys(TIER_ROLE_MAP));
   console.log('  tier from map:', tier);
   if (!tier) {
     console.error('Unknown priceId:', priceId, 'session:', session.id);
