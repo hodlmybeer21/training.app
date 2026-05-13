@@ -144,7 +144,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const supabase = getSupabaseAdmin();
   const tempPassword = generateSecurePassword();
 
-  // Create auth user
+  // First check if user already exists
+  const { data: allUsers } = await supabase.auth.admin.listUsers();
+  const existingUser = allUsers?.users.find(u => u.email === email);
+
+  if (existingUser) {
+    // User exists — update their profile tier
+    console.log('User already exists:', email, '| ID:', existingUser.id);
+    const { error: profileUpsertError } = await supabase
+      .from('profiles')
+      .upsert({ id: existingUser.id, role: tier });
+    if (profileUpsertError) {
+      console.error('Profile upsert error:', profileUpsertError);
+    } else {
+      console.log('Profile updated for', email, 'to tier', tier);
+    }
+    // Don't send new credentials to existing user — they already have an account
+    return;
+  }
+
+  // User doesn't exist — create new account
   const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
     email,
     password: tempPassword,
@@ -153,20 +172,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   });
 
   if (authError) {
-    if (authError.code === 'email_address_already_in_use') {
-      // Existing user — find their ID and ensure profile has correct tier, no password reset needed
-      console.log('User already exists:', email);
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      const existingUser = existingUsers?.users.find(u => u.email === email);
-      if (existingUser) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({ id: existingUser.id, role: tier });
-        if (profileError) console.error('Profile upsert error:', profileError);
-        else console.log(`Profile updated for existing user ${email}`);
-      }
-      return;
-    }
     console.error('Auth user creation error:', authError);
     return;
   }
@@ -174,7 +179,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = authUser.user!.id;
 
   // Create profile row (FK constraint: profiles.id → auth.users.id)
-  // Note: only use columns that exist in the profiles table
   const { error: profileInsertError } = await supabase
     .from('profiles')
     .insert({ id: userId, role: tier });
