@@ -159,9 +159,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = authUser.user!.id;
 
   // Create profile row (FK constraint: profiles.id → auth.users.id)
+  // Note: only use columns that exist in the profiles table
   const { error: profileInsertError } = await supabase
     .from('profiles')
-    .insert({ id: userId, role: tier, subscription_tier: tier });
+    .insert({ id: userId, role: tier });
 
   if (profileInsertError) {
     console.error('Profile insert error:', profileInsertError);
