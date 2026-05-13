@@ -123,85 +123,78 @@ Welcome aboard!
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  console.log('=== handleCheckoutCompleted START ===');
   const email = session.customer_email || session.customer_details?.email;
+  console.log('  email:', email);
   const priceId = session.metadata?.priceId || (session.line_items?.data[0] as any)?.price?.id;
-
-  console.log(`Webhook: checkout completed for session ${session.id}`);
-  console.log(`  email: ${email}`);
-  console.log(`  priceId from metadata: ${session.metadata?.priceId}`);
-  console.log(`  priceId from line_items: ${(session.line_items?.data[0] as any)?.price?.id}`);
-  console.log(`  final priceId: ${priceId}`);
+  console.log('  priceId:', priceId);
 
   if (!email) {
     console.error('No email in checkout session:', session.id);
+    console.log('=== END (no email) ===');
     return;
   }
   if (!priceId) {
     console.error('No priceId in checkout session metadata:', session.id);
+    console.log('=== END (no priceId) ===');
     return;
   }
 
   const tier = TIER_ROLE_MAP[priceId as string];
+  console.log('  tier from map:', tier);
   if (!tier) {
     console.error('Unknown priceId:', priceId, 'session:', session.id);
+    console.log('=== END (unknown tier) ===');
     return;
   }
 
   const supabase = getSupabaseAdmin();
+  console.log('  supabase client created');
   const tempPassword = generateSecurePassword();
-  console.log('Supabase client initialized');
-  console.log('Checking user:', email);
-  
-  // First check if user already exists
+  console.log('  tempPassword generated');
+
+  console.log('  Calling listUsers...');
   const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
-  console.log('listUsers error:', listError);
-  console.log('Total users in system:', allUsers?.users?.length || 0);
+  console.log('  listUsers error:', listError);
+  console.log('  Total users:', allUsers?.users?.length || 0);
   const existingUser = allUsers?.users.find(u => u.email === email);
-  console.log('Existing user found:', !!existingUser, existingUser?.id || '');
+  console.log('  existingUser:', !!existingUser, existingUser?.id || '');
 
   if (existingUser) {
-    // User exists — update their profile tier
-    console.log('User already exists:', email, '| ID:', existingUser.id);
-    const { error: profileUpsertError } = await supabase
-      .from('profiles')
-      .upsert({ id: existingUser.id, role: tier });
-    if (profileUpsertError) {
-      console.error('Profile upsert error:', profileUpsertError);
-    } else {
-      console.log('Profile updated for', email, 'to tier', tier);
-    }
-    // Don't send new credentials to existing user — they already have an account
+    console.log('User exists - updating profile only');
+    const { error: profileUpsertError } = await supabase.from('profiles').upsert({ id: existingUser.id, role: tier });
+    console.log('  profileUpsertError:', profileUpsertError);
+    console.log('=== END (existing user) ===');
     return;
   }
 
-  // User doesn't exist — create new account
+  console.log('Creating new user...');
   const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
     user_metadata: { tier },
   });
+  console.log('  authError:', authError);
+  console.log('  authUser:', authUser?.user?.id);
 
   if (authError) {
     console.error('Auth user creation error:', authError);
+    console.log('=== END (auth error) ===');
     return;
   }
 
   const userId = authUser.user!.id;
+  console.log('  userId:', userId);
 
-  // Create profile row (FK constraint: profiles.id → auth.users.id)
-  const { error: profileInsertError } = await supabase
-    .from('profiles')
-    .insert({ id: userId, role: tier });
+  const { error: profileInsertError } = await supabase.from('profiles').insert({ id: userId, role: tier });
+  console.log('  profileInsertError:', profileInsertError);
 
-  if (profileInsertError) {
-    console.error('Profile insert error:', profileInsertError);
-  }
-
-  // Send credentials email
+  console.log('Sending credentials email to:', email);
   await sendCredentialsEmail(email, tempPassword, tier);
 
   console.log(`✅ Created account for ${email} (tier: ${TIER_DISPLAY[tier]}) — credentials emailed`);
+  console.log('=== END (success) ===');
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
