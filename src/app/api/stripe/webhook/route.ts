@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       await handleInvoicePaymentSucceeded(invoice);
     }
 
-    const response = { received: true, timestamp: Date.now(), version: 'v7' };
+    const response = { received: true, timestamp: Date.now(), version: 'v8', email: session.customer_email || session.customer_details?.email };
     return NextResponse.json(response);
   } catch (err: any) {
     console.error('Webhook handler error:', err);
