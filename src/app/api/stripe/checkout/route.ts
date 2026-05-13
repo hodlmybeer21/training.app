@@ -13,13 +13,10 @@ function getStripe(): Stripe {
   return _stripe;
 }
 
-const PRICE_IDS: Record<string, string | null> = {
-  'solo-monthly':   process.env.STRIPE_SOLO_MONTHLY_PRICE_ID   || null,
-  'solo-annual':    process.env.STRIPE_SOLO_ANNUAL_PRICE_ID    || null,
-  'team-monthly':   process.env.STRIPE_TEAM_MONTHLY_PRICE_ID  || null,
-  'team-annual':    process.env.STRIPE_TEAM_ANNUAL_PRICE_ID    || null,
-  'small-monthly':  process.env.STRIPE_SMALL_MONTHLY_PRICE_ID  || null,
-  'small-annual':   process.env.STRIPE_SMALL_ANNUAL_PRICE_ID   || null,
+const PRICE_IDS: Record<string, string> = {
+  'solo-monthly':  'price_1TWQx5ItqtvZaj2wNbzj7QTH',
+  'small-monthly': 'price_1TWQyBItqtvZaj2wHA2n7Dvm',
+  'team-monthly':   'price_1TWQzEItqtvZaj2wHyT8EdHY',
 };
 
 export async function POST(req: NextRequest) {
