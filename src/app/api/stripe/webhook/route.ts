@@ -53,8 +53,12 @@ export async function POST(req: NextRequest) {
 
   try {
     if (event.type === 'checkout.session.completed') {
+      console.log('Processing checkout.session.completed event');
       const session = event.data.object as Stripe.Checkout.Session;
+      console.log('Session ID:', session.id, '| Email:', session.customer_email || session.customer_details?.email);
+      const startTime = Date.now();
       await handleCheckoutCompleted(session);
+      console.log('handleCheckoutCompleted took', Date.now() - startTime, 'ms');
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as Stripe.Invoice;
       await handleInvoicePaymentSucceeded(invoice);
@@ -63,6 +67,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (err: any) {
     console.error('Webhook handler error:', err);
+    console.error('Stack:', err.stack);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
