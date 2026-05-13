@@ -69,6 +69,9 @@ export async function POST(req: NextRequest) {
 
 async function sendCredentialsEmail(email: string, password: string, tier: string) {
   const AGENTMAIL_API_KEY = process.env.AGENTMAIL_API_KEY;
+  console.log(`📧 Attempting to send credentials email to ${email}`);
+  console.log(`  AgentMail configured:`, !!AGENTMAIL_API_KEY);
+
   if (!AGENTMAIL_API_KEY) {
     console.log('AgentMail not configured, skipping welcome email');
     return;
@@ -100,8 +103,10 @@ Welcome aboard!
         from: 'goodbot@agentmail.to',
       }),
     });
+    console.log(`  Email API response status: ${res.status}`);
     const data = await res.json();
-    if (data.id) {
+    console.log(`  Email API response:`, JSON.stringify(data).substring(0, 200));
+    if (data.id || data.message_id) {
       console.log(`📧 Welcome email sent to ${email}`);
     } else {
       console.log('AgentMail response:', data);
@@ -149,7 +154,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (authError) {
     if (authError.code === 'email_address_already_in_use') {
-      console.log('User already exists, updating tier:', email);
+      // Existing user — find their ID and ensure profile has correct tier, no password reset needed
+      console.log('User already exists:', email);
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      const existingUser = existingUsers?.users.find(u => u.email === email);
+      if (existingUser) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({ id: existingUser.id, role: tier });
+        if (profileError) console.error('Profile upsert error:', profileError);
+        else console.log(`Profile updated for existing user ${email}`);
+      }
       return;
     }
     console.error('Auth user creation error:', authError);
