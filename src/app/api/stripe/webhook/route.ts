@@ -142,11 +142,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   }
 
   const supabase = getSupabaseAdmin();
-  const tempPassword = generateSecurePassword();
-
+  console.log('Supabase client initialized');
+  console.log('Checking user:', email);
+  
   // First check if user already exists
-  const { data: allUsers } = await supabase.auth.admin.listUsers();
+  const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
+  console.log('listUsers error:', listError);
+  console.log('Total users in system:', allUsers?.users?.length || 0);
   const existingUser = allUsers?.users.find(u => u.email === email);
+  console.log('Existing user found:', !!existingUser, existingUser?.id || '');
 
   if (existingUser) {
     // User exists — update their profile tier
