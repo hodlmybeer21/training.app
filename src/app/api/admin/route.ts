@@ -84,10 +84,16 @@ export async function POST(req: Request) {
         .single();
       if (teamErr) return NextResponse.json({ error: teamErr.message }, { status: 500 });
 
+      // Use upsert to handle both new profile creation and updates
       const { data: profile, error: profileErr } = await sbAdmin
         .from('profiles')
-        .update({ role: 'manager', team_id: team.id })
-        .eq('id', authUser.user.id)
+        .upsert({
+          id: authUser.user.id,
+          display_name: email.split('@')[0],
+          role: 'manager',
+          team_id: team.id,
+          category: teamCategory || 'beer-distribution',
+        })
         .select()
         .single();
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
@@ -112,10 +118,17 @@ export async function POST(req: Request) {
       });
       if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 });
 
+      // Use upsert so profile is created if auth user was just created
       const { data: profile, error: profileErr } = await sbAdmin
         .from('profiles')
-        .update({ role: 'rep', team_id: manager.team_id, manager_id: managerId })
-        .eq('id', authUser.user.id)
+        .upsert({
+          id: authUser.user.id,
+          display_name: email.split('@')[0],
+          role: 'rep',
+          team_id: manager.team_id,
+          manager_id: managerId,
+          category: 'beer-distribution',
+        })
         .select()
         .single();
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
