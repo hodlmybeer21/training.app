@@ -32,7 +32,7 @@ export async function middleware(req: NextRequest) {
     }
   )
 
-  let user = null
+  let user: { id: string; email?: string } | null = null
   try {
     const { data: { user: u } } = await supabase.auth.getUser()
     user = u
