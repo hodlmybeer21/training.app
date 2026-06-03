@@ -5,9 +5,17 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(req: NextRequest) {
   let supabaseResponse = NextResponse.next({ request: req })
 
+  // Validate env vars exist before creating Supabase client
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Middleware: Missing Supabase env vars', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
+    return NextResponse.next({ request: req })
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -24,7 +32,13 @@ export async function middleware(req: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data: { user: u } } = await supabase.auth.getUser()
+    user = u
+  } catch(e) {
+    console.error('Middleware: getUser failed:', e)
+  }
   const path = req.nextUrl.pathname
 
   if (!user && path.startsWith('/dashboard')) {
