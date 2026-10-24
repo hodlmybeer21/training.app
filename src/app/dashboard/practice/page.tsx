@@ -659,7 +659,7 @@ const NAV_ITEMS = [
 
 
 
-import Sidebar from '@/components/Sidebar';
+import DashboardNav from '@/components/DashboardNav';
 // OLD Sidebar removed — now using shared component
 
 function OLD_SIDEBAR_PLACEHOLDER({ active }: { active: string }) {
@@ -709,13 +709,15 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  const id = `practice-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+      <label htmlFor={id} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</label>
       <select
+        id={id}
         value={value}
         onChange={e => onChange(e.target.value)}
-        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, color: '#111827', background: '#fff', outline: 'none' }}
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 13, color: '#111827', background: '#fff' }}
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -745,7 +747,6 @@ export default function PracticePage() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [activeNav, setActiveNav] = useState('practice');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customPersonas, setCustomPersonas] = useState<{ id: string; name: string; emoji: string; color: string; description: string; systemPrompt: string; openingLine: string; voicePitch: number; voiceRate: number; scoring_hints: string }[]>([]);
   const supabase = createClient();
   const allPersonasRef = useRef([...ALL_PERSONAS]);
@@ -757,6 +758,22 @@ export default function PracticePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groqErrorRef = useRef('');
   const goalsContextRef = useRef('');
+
+  // Preselect a persona when arriving from the Persona Library (?persona=<id>).
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('persona');
+    if (!wanted) return;
+    for (const [categoryId, personas] of Object.entries(PERSONA_BY_CATEGORY)) {
+      const match = personas.find((p: Persona) => p.id === wanted);
+      if (match) {
+        // Reads the URL once after mount; doing it during render would break hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedCategory(categoryId);
+        setSelectedPersona(match);
+        return;
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (phase === 'call') messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -952,41 +969,28 @@ export default function PracticePage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Sidebar — desktop: always visible; mobile: slide-in overlay */}
-      <div
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
-          width: 220,
-          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s ease',
-        }}
-        className={`mobile-sidebar ${mobileMenuOpen ? 'open' : ''}`}
-      >
-        <Sidebar active="practice" />
-      </div>
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
-      )}
 
       <div style={{ flex: 1, overflow: 'auto', marginLeft: 0 }} className="main-content">
         {/* Header with hamburger */}
-        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>🎤 Practice</div>
+        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <DashboardNav active="practice" />
+          <h1 className="dash-page-title" style={{ fontSize: 20 }}><span aria-hidden="true">🎤 </span>Practice</h1>
         </header>
         {/* ── SETUP PHASE ── */}
         {phase === 'setup' && (
-          <div className="practice-grid-setup" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
+          <div className="practice-grid-setup practice-pad" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
             {/* Left: Setup */}
             <Card>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 20 }}>Scenario Setup</div>
               {/* Category selector */}
               <div style={{ marginBottom: 6 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Category</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                <div id="practice-category-label" style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Category</div>
+                <div role="group" aria-labelledby="practice-category-label" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
                   {CATEGORIES.map(cat => (
                     <button
                       key={cat.id}
+                      type="button"
+                      aria-pressed={selectedCategory === cat.id}
                       onClick={() => {
                         setSelectedCategory(cat.id);
                         const personas = getPersonasForCategory(cat.id);
@@ -1000,7 +1004,7 @@ export default function PracticePage() {
                         textAlign: 'left', transition: 'all 0.15s',
                       }}
                     >
-                      <span>{cat.emoji}</span> {cat.name}
+                      <span aria-hidden="true">{cat.emoji}</span> {cat.name}
                     </button>
                   ))}
                 </div>
@@ -1035,11 +1039,11 @@ export default function PracticePage() {
                 </div>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Deal Objective</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Deal Objective</div>
                 <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>{brief.dealObjective}</div>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Likely Objections</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Likely Objections</div>
                 {brief.objections.map(o => (
                   <div key={o} style={{ fontSize: 12, color: '#6b7280', padding: '6px 0', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8 }}>
                     <span style={{ color: '#D4860A' }}>◆</span>{o}
@@ -1047,9 +1051,9 @@ export default function PracticePage() {
                 ))}
               </div>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Win Conditions</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>Win Conditions</div>
                 {brief.winConditions.map(w => (
-                  <div key={w} style={{ fontSize: 12, color: '#4ade80', padding: '6px 0', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8 }}>
+                  <div key={w} style={{ fontSize: 12, color: '#15803d', padding: '6px 0', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8 }}>
                     <span>✓</span>{w}
                   </div>
                 ))}
@@ -1060,10 +1064,10 @@ export default function PracticePage() {
 
         {/* ── LIVE CALL PHASE ── */}
         {phase === 'call' && (
-          <div className="practice-grid-call" style={{ padding: 32, display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: 24, alignItems: 'start' }}>
+          <div className="practice-grid-call practice-pad" style={{ padding: 32, display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: 24, alignItems: 'start' }}>
             {/* Left: Compact brief */}
             <Card style={{ padding: 20 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Scenario Brief</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Scenario Brief</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <span style={{ fontSize: 22 }}>{selectedPersona.emoji}</span>
                 <div>
@@ -1072,19 +1076,19 @@ export default function PracticePage() {
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Objective</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Objective</div>
                 <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.5 }}>{brief.dealObjective}</div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Objections</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Objections</div>
                 {brief.objections.slice(0, 2).map(o => (
                   <div key={o} style={{ fontSize: 11, color: '#D4860A', marginBottom: 4 }}>◆ {o}</div>
                 ))}
               </div>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Win</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Win</div>
                 {brief.winConditions.map(w => (
-                  <div key={w} style={{ fontSize: 11, color: '#4ade80', marginBottom: 3 }}>✓ {w}</div>
+                  <div key={w} style={{ fontSize: 11, color: '#15803d', marginBottom: 3 }}>✓ {w}</div>
                 ))}
               </div>
             </Card>
@@ -1149,9 +1153,9 @@ export default function PracticePage() {
 
             {/* Right: Live context */}
             <Card style={{ padding: 20 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Live Signals</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14 }}>Live Signals</div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4 }}>Prospect mood</div>
+                <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>Prospect mood</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {['😐 Neutral', '🙂 Engaged', '😠 Skeptical'].map(s => (
                     <span key={s} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 12, background: s === '😠 Skeptical' ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.1)', color: s === '😠 Skeptical' ? '#ef4444' : '#4ade80', border: `1px solid ${s === '😠 Skeptical' ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.3)'}` }}>{s}</span>
@@ -1159,7 +1163,7 @@ export default function PracticePage() {
                 </div>
               </div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 6 }}>Key moment markers</div>
+                <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>Key moment markers</div>
                 {['⏱ Call started', '🟡 Objection raised', '🟢 Buying signal'].map((item, i) => (
                   <div key={item} style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'flex', gap: 6 }}>
                     <span>{item.split(' ')[0]}</span><span>{item.split(' ').slice(1).join(' ')}</span>
@@ -1167,7 +1171,7 @@ export default function PracticePage() {
                 ))}
               </div>
               <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 6 }}>Talking points</div>
+                <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>Talking points</div>
                 <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.6, background: '#f9fafb', borderRadius: 8, padding: '10px 12px', borderLeft: '3px solid #D4860A' }}>
                   Lead with velocity data. Ask what they'd need to see to move forward today. Don't mention price until they've asked.
                 </div>
@@ -1186,20 +1190,20 @@ export default function PracticePage() {
                 <Card>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>{isAnalyzing ? 'Analyzing session...' : 'Overall Score'}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>{isAnalyzing ? 'Analyzing session...' : 'Overall Score'}</div>
                       {isAnalyzing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ display: 'flex', gap: 1 }}>
                         {[0,1,2].map(i => <span key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#D4860A', animation: 'bob 1.2s ease-in-out infinite', animationDelay: i * 0.2 + 's' }} />)}
                       </div>
-                      <span style={{ fontSize: 14, color: '#9ca3af' }}>Reviewing transcript...</span>
+                      <span style={{ fontSize: 14, color: '#6b7280' }}>Reviewing transcript...</span>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 36, fontWeight: 800, color: '#D4860A' }}>{reviewData?.overallScore || '--'}<span style={{ fontSize: 18, color: '#9ca3af' }}>/100</span></div>
+                    <div style={{ fontSize: 36, fontWeight: 800, color: '#D4860A' }}>{reviewData?.overallScore || '--'}<span style={{ fontSize: 18, color: '#6b7280' }}>/100</span></div>
                   )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>Scenario</div>
+                      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>Scenario</div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{selectedPersona.name}</div>
                       <div style={{ fontSize: 11, color: '#6b7280' }}>{formatTime(callSeconds)} duration</div>
                     </div>
@@ -1225,7 +1229,7 @@ export default function PracticePage() {
 
                 {/* Transcript */}
                 <Card>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Transcript</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Transcript</div>
                   <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {messages.map((m, i) => (
                       <div key={i} style={{ display: 'flex', flexDirection: m.role === 'user' ? 'row-reverse' : 'row', gap: 8 }}>
@@ -1233,7 +1237,7 @@ export default function PracticePage() {
                           {m.role === 'user' ? 'J' : selectedPersona.emoji}
                         </div>
                         <div style={{ maxWidth: '75%' }}>
-                          <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3, textAlign: m.role === 'user' ? 'right' : 'left' }}>{m.role === 'user' ? 'Jordan (You)' : selectedPersona.name}</div>
+                          <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 3, textAlign: m.role === 'user' ? 'right' : 'left' }}>{m.role === 'user' ? 'Jordan (You)' : selectedPersona.name}</div>
                           <div style={{ padding: '10px 14px', borderRadius: 12, background: m.role === 'user' ? '#f9fafb' : '#f3f4f6', fontSize: 13, color: '#374151', lineHeight: 1.55, borderBottomLeftRadius: m.role === 'user' ? 12 : 4, borderBottomRightRadius: m.role === 'user' ? 4 : 12 }}>
                             {m.content}
                           </div>
@@ -1258,9 +1262,9 @@ export default function PracticePage() {
                 </Card>
 
                 <Card>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Top Takeaways</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Top Takeaways</div>
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, color: '#4ade80', marginBottom: 6 }}>✓ Strengths</div>
+                    <div style={{ fontSize: 12, color: '#15803d', marginBottom: 6 }}>✓ Strengths</div>
                     <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, paddingLeft: 12 }}>{(reviewData?.strengths || []).join(' ')}</div>
                   </div>
                   <div>
@@ -1288,11 +1292,9 @@ export default function PracticePage() {
       </div>
       <style>{`
         @media (min-width: 769px) {
-          .hamburger-btn { display: block !important; }
           .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
         }
         @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
           .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
         }
       `}</style>

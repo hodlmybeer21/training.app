@@ -615,3 +615,19 @@ a.btn-primary, a.btn-ghost, a.btn-dark { display: inline-block; text-decoration:
   .site-nav a { font-size: 12px; }
   .site-nav .site-nav-signin { padding: 7px 12px; }
 }
+
+/* ── ACCESSIBILITY + DASHBOARD SHELL ── */
+:focus-visible { outline: 2px solid var(--amber) !important; outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.hamburger-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; background: none; border: none; border-radius: 8px; cursor: pointer; font-size: 22px; line-height: 1; color: #374151; }
+.hamburger-btn:hover { background: #f3f4f6; }
+.dash-drawer { position: fixed; top: 0; left: 0; bottom: 0; z-index: 50; width: 220px; overflow-y: auto; background: #13151F; transition: transform 0.25s ease, visibility 0.25s; }
+.dash-drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
+.dash-page-title { font-size: 22px; font-weight: 700; color: #111827; margin: 0; line-height: 1.25; }
+.dash-state { background: #fff; border-radius: 14px; padding: 32px 24px; text-align: center; font-size: 14px; color: #4b5563; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.dash-state-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+.dash-state a, .dash-state button.dash-retry { color: #b45309; font-weight: 600; }
+button.dash-retry { background: none; border: none; cursor: pointer; font-size: inherit; text-decoration: underline; padding: 0; }
+@media (prefers-reduced-motion: reduce) { .dash-drawer { transition: none; } }
+@media (max-width: 768px) { .dash-banner { margin: 16px 16px 0 !important; } }
+@media (max-width: 768px) { .practice-pad { padding: 16px !important; } }

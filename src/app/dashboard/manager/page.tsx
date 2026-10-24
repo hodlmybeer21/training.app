@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import Sidebar from '@/components/Sidebar';
+import DashboardNav from '@/components/DashboardNav';
 import GoalsPanel from './GoalsPanel';
 import PersonaCreator from './PersonaCreator';
 
@@ -76,18 +76,18 @@ function RepDetailInline({ rep, onSessionSelect, selectedSessionId }: { rep: any
       <div style={{ display: 'flex', gap: 16, background: '#fff', borderRadius: 10, padding: '12px 14px', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#D4860A' }}>{rep.session_count}</div>
-          <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sessions</div>
+          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sessions</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: '#7C3AED' }}>{rep.avg_overall ?? '--'}</div>
-          <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg</div>
+          <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg</div>
         </div>
       </div>
 
       {/* Skill breakdown compact */}
       {rep.radarData && rep.radarData.length > 0 && (
         <div style={{ background: '#fff', borderRadius: 10, padding: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Skill Breakdown</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Skill Breakdown</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <RadarSmall radarData={rep.radarData} />
             <div style={{ flex: 1 }}>
@@ -133,11 +133,11 @@ function RepDetailInline({ rep, onSessionSelect, selectedSessionId }: { rep: any
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {session.scenario_name}
                   </div>
-                  <div style={{ fontSize: 10, color: '#9ca3af' }}>
+                  <div style={{ fontSize: 10, color: '#6b7280' }}>
                     {new Date(session.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>
                   {selectedSessionId === session.id ? '▲' : '▼'}
                 </div>
               </div>
@@ -157,23 +157,23 @@ function RepDetailInline({ rep, onSessionSelect, selectedSessionId }: { rep: any
 function DrillDownView({ session }: { session: Session }) {
   const d = new Date(session.created_at);
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const scoreColor = (session.overall_score ?? 0) >= 75 ? '#4ade80' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444';
+  const scoreColor = (session.overall_score ?? 0) >= 75 ? '#15803d' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 4 }}>{session.scenario_name}</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>{dateStr}</div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>{dateStr}</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 36, fontWeight: 900, color: scoreColor, lineHeight: 1 }}>{session.overall_score ?? '--'}</div>
-          <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>Overall</div>
+          <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>Overall</div>
         </div>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Score Breakdown</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Score Breakdown</div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
           <RadarSmall radarData={SKILL_KEYS.map((key) => ({ subject: SKILL_SHORT[key], value: (session[key] as number) ?? 0 }))} />
           <div style={{ flex: 1, minWidth: 160 }}>
@@ -207,23 +207,23 @@ export default function ManagerPage() {
   const [reps, setReps] = useState<any[]>([]);
   const [teamStats, setTeamStats] = useState<{ team_session_count: number; team_avg_overall: number | null }>({ team_session_count: 0, team_avg_overall: null });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [view, setView] = useState<'team' | 'goals' | 'personas'>('team');
   const supabase = createClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     fetch('/api/team')
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => {
         if (d.reps) setReps(d.reps);
         if (d.team_session_count !== undefined) setTeamStats(d);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoadError(true); setLoading(false); });
   }, []);
 
   const selectedRep = reps.find((r) => r.profile.id === selectedRepId) || null;
@@ -231,69 +231,65 @@ export default function ManagerPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
-      <div style={{
-        position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, width: 220,
-        transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s ease',
-      }}>
-        <Sidebar active="manager" />
-      </div>
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
-      )}
 
       <div style={{ flex: 1, overflow: 'auto', marginLeft: 0 }} className="main-content">
-        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>🎯 Team Dashboard</div>
-          <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+        <header className="manager-header" style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <DashboardNav active="manager" />
+          <h1 className="dash-page-title" style={{ fontSize: 20 }}><span aria-hidden="true">🎯 </span>Team Dashboard</h1>
+          <div className="manager-tabs" role="group" aria-label="Team views" style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
             <button
               onClick={() => setView('team')}
+              aria-pressed={view === 'team'}
+              type="button"
               style={{ background: view === 'team' ? '#D4860A' : 'transparent', color: view === 'team' ? '#fff' : '#6b7280', border: `1.5px solid ${view === 'team' ? '#D4860A' : '#e5e7eb'}`, borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              👥 Team
+              <span aria-hidden="true">👥 </span>Team
             </button>
             <button
               onClick={() => setView('personas')}
+              aria-pressed={view === 'personas'}
+              type="button"
               style={{ background: view === 'personas' ? '#D4860A' : 'transparent', color: view === 'personas' ? '#fff' : '#6b7280', border: `1.5px solid ${view === 'personas' ? '#D4860A' : '#e5e7eb'}`, borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              🎨 Personas
+              <span aria-hidden="true">🎨 </span>Personas
             </button>
             <button
               onClick={() => setView('goals')}
+              aria-pressed={view === 'goals'}
+              type="button"
               style={{ background: view === 'goals' ? '#D4860A' : 'transparent', color: view === 'goals' ? '#fff' : '#6b7280', border: `1.5px solid ${view === 'goals' ? '#D4860A' : '#e5e7eb'}`, borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              🎯 Team Goals
+              <span aria-hidden="true">🎯 </span>Team Goals
             </button>
           </div>
         </header>
 
         {view === 'personas' ? (
-          <div style={{ padding: 28 }}>
+          <div className="manager-pad" style={{ padding: 28 }}>
             <PersonaCreator />
           </div>
         ) : view === 'goals' ? (
-          <div style={{ padding: 28 }}>
+          <div className="manager-pad" style={{ padding: 28 }}>
             <GoalsPanel />
           </div>
         ) : (
         <>
 
         {/* Team stats bar */}
-        <div style={{ display: 'flex', gap: 24, padding: '20px 28px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
+        <div className="manager-stats" style={{ display: 'flex', gap: 24, padding: '20px 28px', background: '#fff', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 28, fontWeight: 800, color: '#D4860A' }}>{reps.length}</div>
-            <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Team Size</div>
+            <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Team Size</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 28, fontWeight: 800, color: '#7C3AED' }}>{teamStats.team_session_count}</div>
-            <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Sessions</div>
+            <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Total Sessions</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: teamStats.team_avg_overall !== null ? '#4ade80' : '#9ca3af' }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: teamStats.team_avg_overall !== null ? '#15803d' : '#9ca3af' }}>
               {teamStats.team_avg_overall ?? '--'}
             </div>
-            <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Team Avg Score</div>
+            <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Team Avg Score</div>
           </div>
         </div>
 
@@ -301,18 +297,25 @@ export default function ManagerPage() {
           {/* Left: rep list + optional inline detail on mobile */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} className="manager-reps">
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 32, color: '#9ca3af' }}>Loading team data...</div>
+              <div role="status" className="dash-state">Loading team data…</div>
+            ) : loadError ? (
+              <div role="alert" className="dash-state dash-state-error">
+                We couldn&apos;t load your team just now.{' '}
+                <button type="button" className="dash-retry" onClick={() => window.location.reload()}>Try again</button>
+              </div>
             ) : reps.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 32, color: '#9ca3af', fontSize: 13, margin: '32px 0' }}>
-                No team members found.
+              <div className="dash-state">
+                No reps on your team yet. Your account admin adds teammates, and their practice sessions will show up here once they start.
               </div>
             ) : (
               reps.map((rep) => {
-                const scoreColor = (rep.avg_overall ?? 0) >= 75 ? '#4ade80' : (rep.avg_overall ?? 0) >= 60 ? '#D4860A' : '#ef4444';
+                const scoreColor = (rep.avg_overall ?? 0) >= 75 ? '#15803d' : (rep.avg_overall ?? 0) >= 60 ? '#D4860A' : '#ef4444';
                 const isSelected = selectedRepId === rep.profile.id;
                 return (
                   <div key={rep.profile.id}>
                     <button
+                      type="button"
+                      aria-expanded={isSelected}
                       onClick={() => {
                         setSelectedRepId(isSelected ? null : rep.profile.id);
                         if (!isSelected) { setSelectedRepId(rep.profile.id); setSelectedSessionId(null); }
@@ -336,11 +339,11 @@ export default function ManagerPage() {
                           <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {rep.profile.display_name || 'Rep'}
                           </div>
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>
                             {rep.session_count} session{rep.session_count !== 1 ? 's' : ''}
                           </div>
                         </div>
-                        <div style={{ fontSize: 14 }}>
+                        <div aria-hidden="true" style={{ fontSize: 12, color: '#6b7280' }}>
                           {isSelected ? '▲' : '▼'}
                         </div>
                       </div>
@@ -359,7 +362,7 @@ export default function ManagerPage() {
           </div>
 
           {/* Right: rep detail — stacks below reps on mobile */}
-          <div style={{ gridColumn: 2 }} className="manager-detail-desktop">
+          <div className="manager-detail-desktop">
             {selectedRep ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {/* Rep header */}
@@ -370,11 +373,11 @@ export default function ManagerPage() {
                   <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 24, fontWeight: 800, color: '#D4860A' }}>{selectedRep.session_count}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sessions</div>
+                      <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sessions</div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 24, fontWeight: 800, color: '#7C3AED' }}>{selectedRep.avg_overall ?? '--'}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Score</div>
+                      <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Score</div>
                     </div>
                   </div>
                 </div>
@@ -382,7 +385,7 @@ export default function ManagerPage() {
                 {/* Radar for this rep */}
                 {selectedRep.radarData && selectedRep.radarData.length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Skill Breakdown</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Skill Breakdown</div>
                     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
                       <RadarSmall radarData={selectedRep.radarData} />
                       <div style={{ flex: 1, minWidth: 160 }}>
@@ -405,7 +408,7 @@ export default function ManagerPage() {
                 {/* Session list */}
                 {selectedRep.recentSessions && selectedRep.recentSessions.length > 0 && (
                   <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Recent Sessions</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 14 }}>Recent Sessions</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {selectedRep.recentSessions.map((session: any) => (
                         <button
@@ -430,11 +433,11 @@ export default function ManagerPage() {
                               <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {session.scenario_name}
                               </div>
-                              <div style={{ fontSize: 11, color: '#9ca3af' }}>
+                              <div style={{ fontSize: 11, color: '#6b7280' }}>
                                 {new Date(session.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </div>
                             </div>
-                            <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                            <div style={{ fontSize: 12, color: '#6b7280' }}>
                               {selectedSessionId === session.id ? '▲' : '▼'}
                             </div>
                           </div>
@@ -452,7 +455,7 @@ export default function ManagerPage() {
             ) : (
               <div style={{
                 background: '#fff', borderRadius: 14, padding: 40, textAlign: 'center',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)', color: '#9ca3af', fontSize: 14, marginTop: 20,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)', color: '#6b7280', fontSize: 14, marginTop: 20,
               }}>
                 Select a rep from the left to see their session history and skill breakdown.
               </div>
@@ -464,14 +467,13 @@ export default function ManagerPage() {
     </div>
 
       <style>{`
-          .hamburger-btn { display: block !important; }
-        }
         @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
           .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
-          div[style*="grid-template-columns: 340px"] {
-            grid-template-columns: 1fr !important;
-          }
+          .manager-grid { grid-template-columns: minmax(0, 1fr) !important; padding: 16px !important; }
+          .manager-pad { padding: 16px !important; }
+          .manager-stats { padding: 16px !important; justify-content: space-around; }
+          .manager-tabs { margin-left: 0 !important; width: 100%; }
+          .manager-tabs button { flex: 1; padding: 8px 6px !important; }
           .manager-detail-desktop { display: none !important; }
           .mobile-expand { display: block !important; }
         }

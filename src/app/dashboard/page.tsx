@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import DashboardNav from '@/components/DashboardNav';
 import { User } from '@supabase/supabase-js';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -63,7 +64,7 @@ function Card(props: { children: React.ReactNode; style?: React.CSSProperties })
 }
 
 function CardLabel(props: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 16 }}>{props.children}</div>;
+  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280', marginBottom: 16 }}>{props.children}</div>;
 }
 
 function avgScore(sessions: Session[], field: string): number {
@@ -103,52 +104,14 @@ function scenarioEmoji(name: string): string {
   return '🎯';
 }
 
-const NAV_ITEMS = [
-  { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
-  { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
-  { emoji: '👥', label: 'Personas', id: 'personas', href: '/dashboard/personas' },
-  { emoji: '📊', label: 'Reviews', id: 'reviews', href: '/dashboard/reviews' },
-  { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
-  { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
-  { emoji: '🎯', label: 'My Team', id: 'manager', href: '/dashboard/manager' },
-];
-
-function Sidebar({ active }: { active: string }) {
-  return (
-    <aside style={{ width: 220, background: '#13151F', minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '20px 0', borderRight: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-      <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#D4860A', letterSpacing: '0.05em' }}>TrainField AI</div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Sales Training OS</div>
-      </div>
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {NAV_ITEMS.map(item => (
-          <a
-            key={item.id}
-            href={item.href}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 8, width: '100%',
-              background: active === item.id ? 'rgba(212,134,10,0.15)' : 'transparent',
-              color: active === item.id ? '#FAC765' : 'rgba(255,255,255,0.5)',
-              fontSize: 13, fontWeight: 500, textDecoration: 'none', transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 16 }}>{item.emoji}</span>
-            {item.label}
-          </a>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
 export default function Dashboard() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [goals, setGoals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ display_name: string; avatar_initial: string } | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [now] = useState(() => Date.now());
   const supabase = createClient();
 
   useEffect(() => {
@@ -158,9 +121,9 @@ export default function Dashboard() {
       .then(d => { if (d.profile) setProfile(d.profile); })
       .catch(() => {});
     fetch('/api/sessions')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then(d => { setSessions(d.sessions || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoadError(true); setLoading(false); });
     fetch('/api/goals')
       .then(r => r.json())
       .then(d => { if (d.goals) setGoals(d.goals); })
@@ -168,11 +131,9 @@ export default function Dashboard() {
   }, []);
 
   const latest = sessions[0];
-  const streak = sessions.filter(s => {
-    const d = new Date(s.created_at);
-    const now = new Date();
-    const diffH = (now.getTime() - d.getTime()) / 3600000;
-    return diffH < 48;
+  const weekCount = sessions.filter(s => {
+    const diffH = (now - new Date(s.created_at).getTime()) / 3600000;
+    return diffH < 24 * 7;
   }).length;
   const skillAvg = (field: string) => avgScore(sessions, field);
   const radarData = [
@@ -197,40 +158,24 @@ export default function Dashboard() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Sidebar — desktop: always visible; mobile: slide-in overlay */}
-      <div
-        style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50,
-          width: 220,
-          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.25s ease',
-        }}
-        className={`mobile-sidebar ${mobileMenuOpen ? 'open' : ''}`}
-      >
-        <Sidebar active="dashboard" />
-      </div>
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
-      )}
-
-      <div style={{ flex: 1, overflow: 'auto', marginLeft: '220px' }} className="main-content">
+      <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }} className="main-content">
         {/* Header */}
         <header className="dash-header" style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <DashboardNav active="dashboard" />
             <div>
-              <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>Welcome back, {profile?.display_name || user?.email?.split('@')[0] || 'User'}</h2>
+              <h1 className="dash-page-title">Welcome back, {profile?.display_name || user?.email?.split('@')[0] || 'there'}</h1>
               <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Your sales training hub</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#D4860A' }}>{streak}</div>
-              <div style={{ fontSize: 10, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Recent Sessions</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#D4860A' }}>{weekCount}</div>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sessions this week</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>{avgOverall(sessions) || '--'}</div>
-              <div style={{ fontSize: 10, color: '#9ca3af', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Avg Score</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#15803d' }}>{avgOverall(sessions) || '--'}</div>
+              <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Avg Score</div>
             </div>
             <a href="/dashboard/practice" style={{ background: '#D4860A', color: '#fff', border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer', letterSpacing: '0.03em', textDecoration: 'none' }}>
               🎤 Start Practice
@@ -238,8 +183,15 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {loadError && (
+          <div role="alert" className="dash-state dash-state-error dash-banner" style={{ margin: '20px 28px 0', padding: '14px 18px', textAlign: 'left' }}>
+            We couldn&apos;t load your sessions just now, so the numbers below may be empty.{' '}
+            <button type="button" className="dash-retry" onClick={() => window.location.reload()}>Try again</button>
+          </div>
+        )}
+
         {goals.length > 0 && (
-          <div style={{ margin: '20px 28px 0', padding: '14px 18px', background: '#1A1208', border: '1px solid rgba(212,134,10,0.35)', borderRadius: 12 }}>
+          <div className="dash-banner" style={{ margin: '20px 28px 0', padding: '14px 18px', background: '#1A1208', border: '1px solid rgba(212,134,10,0.35)', borderRadius: 12 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#D4860A', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>🎯 Team Goals Active</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {goals.map(g => (
@@ -258,19 +210,19 @@ export default function Dashboard() {
           {/* Skill Readiness Radar */}
           <Card style={{ gridColumn: '1 / 3' }}>
             <CardLabel>Skill Readiness Score</CardLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
               <div style={{ position: 'relative', width: 88, height: 88, flexShrink: 0 }}>
                 <ScoreRing score={avgOverall(sessions) || 0} size={88} />
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{avgOverall(sessions) || '--'}</span>
-                  <span style={{ fontSize: 9, color: '#9ca3af' }}>/100</span>
+                  <span style={{ fontSize: 9, color: '#6b7280' }}>/100</span>
                 </div>
               </div>
-              <div style={{ flex: 1, height: 180, minWidth: 0, overflow: 'hidden' }}>
+              <div style={{ flex: '1 1 220px', height: 200, minWidth: 0 }} role="img" aria-label={`Skill radar: ${radarData.map(d => `${d.subject} ${d.value}`).join(', ')}`}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData} outerRadius={65}>
+                  <RadarChart data={radarData} outerRadius="68%" margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
                     <PolarGrid stroke="#e5e7eb" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#4b5563' }} />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
                     <Radar name="Skills" dataKey="value" stroke="#D4860A" fill="#D4860A" fillOpacity={0.2} strokeWidth={2} />
                   </RadarChart>
@@ -282,7 +234,7 @@ export default function Dashboard() {
           {/* Last Simulation */}
           <Card>
             <CardLabel>Last Simulation</CardLabel>
-            {loading ? <div style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</div> : latest ? (
+            {loading ? <div role="status" style={{ color: '#6b7280', fontSize: 12 }}>Loading…</div> : latest ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
                   <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0 }}>
@@ -293,15 +245,15 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{latest.scenario_name}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{formatDate(latest.created_at)}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>{formatDate(latest.created_at)}</div>
                   </div>
                 </div>
-                {latest.strengths?.length ? <div style={{ fontSize: 11, color: '#4ade80', marginBottom: 4 }}>✓ {latest.strengths[0]}</div> : null}
-                {latest.opportunities?.length ? <div style={{ fontSize: 11, color: '#D4860A' }}>→ {latest.opportunities[0]}</div> : null}
+                {latest.strengths?.length ? <div style={{ fontSize: 11, color: '#15803d', marginBottom: 4 }}>✓ {latest.strengths[0]}</div> : null}
+                {latest.opportunities?.length ? <div style={{ fontSize: 11, color: '#b45309' }}>→ {latest.opportunities[0]}</div> : null}
                 <a href="/dashboard/reviews" style={{ display: 'block', width: '100%', padding: '9px', background: 'transparent', border: '1.5px solid #D4860A', borderRadius: 8, color: '#D4860A', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', textDecoration: 'none', marginTop: 10 }}>Review Call →</a>
               </>
             ) : (
-              <div style={{ color: '#9ca3af', fontSize: 12 }}>No sessions yet — <a href="/dashboard/practice" style={{ color: '#D4860A' }}>start practicing</a></div>
+              <div style={{ color: '#6b7280', fontSize: 12 }}>No sessions yet — <a href="/dashboard/practice" style={{ color: '#D4860A' }}>start practicing</a></div>
             )}
           </Card>
 
@@ -311,11 +263,11 @@ export default function Dashboard() {
             {latest?.recommended_drill ? (
               <>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 6, lineHeight: 1.5 }}>{latest.recommended_drill.split(' ').slice(0, 10).join(' ')}</div>
-                <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 14 }}>Based on your lowest score</div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 14 }}>Based on your lowest score</div>
                 <a href="/dashboard/practice" style={{ display: 'block', width: '100%', padding: '9px', background: '#D4860A', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'center', textDecoration: 'none' }}>Practice Now →</a>
               </>
             ) : (
-              <div style={{ color: '#9ca3af', fontSize: 12 }}>Complete a session to get a recommendation.</div>
+              <div style={{ color: '#6b7280', fontSize: 12 }}>Complete a session to get a recommendation.</div>
             )}
           </Card>
 
@@ -327,7 +279,7 @@ export default function Dashboard() {
                 <div key={skill.name}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 11, fontWeight: 500, color: '#374151' }}>{skill.name}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: skill.color }}>{skill.value}%</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>{skill.value}%</span>
                   </div>
                   <div style={{ height: 5, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${skill.value}%`, background: skill.color, borderRadius: 3 }} />
@@ -343,15 +295,15 @@ export default function Dashboard() {
             <div style={{ height: 180 }}>
               {progressData.length > 1 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={progressData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[50, 100]} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                <LineChart data={progressData} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }} />
                   <Line type="monotone" dataKey="score" stroke="#D4860A" strokeWidth={2.5} dot={{ fill: '#D4860A', r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af', fontSize: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b7280', fontSize: 12 }}>
                   More sessions needed to show trend
                 </div>
               )}
@@ -362,19 +314,19 @@ export default function Dashboard() {
           <Card>
             <CardLabel>Recent Simulations</CardLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {recentSims.length === 0 && !loading && <div style={{ color: '#9ca3af', fontSize: 12 }}>No sessions yet.</div>}
+              {recentSims.length === 0 && !loading && <div style={{ color: '#6b7280', fontSize: 12 }}>No sessions yet.</div>}
               {recentSims.map(sim => (
                 <div key={sim.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 20 }}>{scenarioEmoji(sim.scenario_name)}</span>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{sim.scenario_name}</div>
-                      <div style={{ fontSize: 10, color: '#9ca3af' }}>{formatDate(sim.created_at)}</div>
+                      <div style={{ fontSize: 10, color: '#6b7280' }}>{formatDate(sim.created_at)}</div>
                     </div>
                   </div>
                   <div style={{
                     fontSize: 13, fontWeight: 700,
-                    color: (sim.overall_score || 0) >= 75 ? '#4ade80' : (sim.overall_score || 0) >= 60 ? '#D4860A' : '#ef4444'
+                    color: (sim.overall_score || 0) >= 75 ? '#15803d' : (sim.overall_score || 0) >= 60 ? '#b45309' : '#dc2626'
                   }}>{sim.overall_score ?? '--'}</div>
                 </div>
               ))}
@@ -384,11 +336,7 @@ export default function Dashboard() {
       </div>
 
       <style>{`
-        .hamburger-btn { display: block !important; }
-        .main-content { margin-left: 0 !important; width: 100% !important; max-width: 100% !important; flex: none !important; }
-        @media (min-width: 769px) {
-          .main-content { margin-left: 0 !important; }
-        }
+        .main-content { width: 100%; }
       `}</style>
     </div>
   );

@@ -142,8 +142,8 @@ export default function PersonaCreator() {
                 </div>
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   {p.scoring_hints && <span style={{ fontSize: 9, background: '#f3f4f6', color: '#6b7280', padding: '2px 6px', borderRadius: 8 }}>🎯</span>}
-                  <button className={`pc-toggle ${p.active ? 'on' : 'off'}`} onClick={() => handleToggle(p)}>{p.active ? 'On' : 'Off'}</button>
-                  <button className="pc-delete" onClick={() => setDeleteId(p.id)}>✕</button>
+                  <button type="button" aria-pressed={p.active} aria-label={`${p.name} is ${p.active ? 'on' : 'off'} for your team`} className={`pc-toggle ${p.active ? 'on' : 'off'}`} onClick={() => handleToggle(p)}>{p.active ? 'On' : 'Off'}</button>
+                  <button type="button" aria-label={`Delete ${p.name}`} className="pc-delete" onClick={() => setDeleteId(p.id)}>✕</button>
                 </div>
               </div>
             </div>
@@ -163,22 +163,22 @@ export default function PersonaCreator() {
           <div className="pc-form">
             {/* Name */}
             <div>
-              <div className="pc-label">Name *</div>
-              <input className="pc-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Skeptic Grocery Buyer" required />
+              <label className="pc-label" htmlFor="pc-name" style={{ display: 'block' }}>Name *</label>
+              <input id="pc-name" className="pc-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Skeptic Grocery Buyer" required />
             </div>
 
             {/* Description */}
             <div>
-              <div className="pc-label">Description</div>
-              <input className="pc-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description" />
+              <label className="pc-label" htmlFor="pc-description" style={{ display: 'block' }}>Description</label>
+              <input id="pc-description" className="pc-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Short description" />
             </div>
 
             {/* Emoji */}
             <div className="pc-full">
-              <div className="pc-label">Emoji</div>
-              <div className="pc-emoji-grid">
+              <div className="pc-label" id="pc-emoji-label">Emoji</div>
+              <div className="pc-emoji-grid" role="group" aria-labelledby="pc-emoji-label">
                 {EMOJI_OPTIONS.map(e => (
-                  <button type="button" key={e} className={`pc-emoji-btn ${emoji === e ? 'selected' : ''}`}
+                  <button type="button" key={e} aria-pressed={emoji === e} className={`pc-emoji-btn ${emoji === e ? 'selected' : ''}`}
                     onClick={() => setEmoji(e)}>{e}</button>
                 ))}
               </div>
@@ -186,11 +186,12 @@ export default function PersonaCreator() {
 
             {/* Color */}
             <div className="pc-full">
-              <div className="pc-label">Color</div>
-              <div className="pc-color-row">
+              <div className="pc-label" id="pc-color-label">Color</div>
+              <div className="pc-color-row" role="group" aria-labelledby="pc-color-label">
                 {COLOR_OPTIONS.map(c => (
-                  <div key={c} className={`pc-color-dot ${color === c ? 'selected' : ''}`}
-                    style={{ background: c }}
+                  <button type="button" key={c} className={`pc-color-dot ${color === c ? 'selected' : ''}`}
+                    aria-label={`Color ${c}`} aria-pressed={color === c}
+                    style={{ background: c, border: 'none', padding: 0 }}
                     onClick={() => setColor(c)} />
                 ))}
               </div>
@@ -198,23 +199,23 @@ export default function PersonaCreator() {
 
             {/* Character Instructions */}
             <div className="pc-full">
-              <div className="pc-label">Character Instructions *</div>
-              <textarea className="pc-textarea" value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
+              <label className="pc-label" htmlFor="pc-instructions" style={{ display: 'block' }}>Character Instructions *</label>
+              <textarea id="pc-instructions" className="pc-textarea" value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
                 placeholder={'You are a skeptical grocery chain buyer. You push back on pricing, question value, and need concrete proof. Keep responses short (1-3 sentences).'}
                 style={{ minHeight: 72 }} required />
             </div>
 
             {/* Opening Line */}
             <div className="pc-full">
-              <div className="pc-label">Opening Line *</div>
-              <input className="pc-input" value={openingLine} onChange={e => setOpeningLine(e.target.value)}
+              <label className="pc-label" htmlFor="pc-opening" style={{ display: 'block' }}>Opening Line *</label>
+              <input id="pc-opening" className="pc-input" value={openingLine} onChange={e => setOpeningLine(e.target.value)}
                 placeholder="How this persona starts the conversation" required />
             </div>
 
             {/* Scoring Hints */}
             <div className="pc-full">
-              <div className="pc-label">Scoring Hints</div>
-              <textarea className="pc-textarea" value={scoringHints} onChange={e => setScoringHints(e.target.value)}
+              <label className="pc-label" htmlFor="pc-hints" style={{ display: 'block' }}>Scoring Hints</label>
+              <textarea id="pc-hints" className="pc-textarea" value={scoringHints} onChange={e => setScoringHints(e.target.value)}
                 placeholder={'What should the AI look for when scoring reps on this persona?\nE.g. "Look for: asks about shelf space before pitching"'}>
               </textarea>
             </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
-import Sidebar from '@/components/Sidebar';
+import DashboardNav from '@/components/DashboardNav';
 
 type Session = {
   id: string;
@@ -121,13 +121,13 @@ function RadarChartSmall({ scores }: { scores: Session }) {
 }
 
 function SessionCard({ session, selected, onSelect }: { session: Session; selected: boolean; onSelect: () => void }) {
-  const scoreColor = (session.overall_score ?? 0) >= 75 ? '#4ade80' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444';
+  const scoreColor = (session.overall_score ?? 0) >= 75 ? '#15803d' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444';
   const d = new Date(session.created_at);
   const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <button onClick={onSelect} style={{
+      <button type="button" aria-expanded={selected} onClick={onSelect} style={{
         width: '100%', background: selected ? '#FAFAF8' : '#fff',
         border: `1.5px solid ${selected ? '#D4860A' : '#e5e7eb'}`,
         borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
@@ -143,13 +143,13 @@ function SessionCard({ session, selected, onSelect }: { session: Session; select
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.scenario_name}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af' }}>{dateStr} · {session.duration_seconds ? `${Math.floor(session.duration_seconds / 60)}m ${session.duration_seconds % 60}s` : '--'}</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>{dateStr} · {session.duration_seconds ? `${Math.floor(session.duration_seconds / 60)}m ${session.duration_seconds % 60}s` : '--'}</div>
           </div>
-          <div style={{ fontSize: 16 }}>{selected ? '▲' : '▼'}</div>
+          <div aria-hidden="true" style={{ fontSize: 12, color: '#6b7280' }}>{selected ? '▲' : '▼'}</div>
         </div>
       </button>
       {selected && (
-        <div style={{ padding: '12px 0 4px' }}>
+        <div className="reviews-inline-detail" style={{ padding: '12px 0 4px' }}>
           <DrillDownView session={session} />
         </div>
       )}
@@ -167,17 +167,17 @@ function DrillDownView({ session }: { session: Session }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 4 }}>{session.scenario_name}</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>{dateStr} · Session {session.id.slice(0, 8)}</div>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>{dateStr} · Session {session.id.slice(0, 8)}</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 36, fontWeight: 900, color: (session.overall_score ?? 0) >= 75 ? '#4ade80' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444', lineHeight: 1 }}>{session.overall_score ?? '--'}</div>
-          <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>Overall</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: (session.overall_score ?? 0) >= 75 ? '#15803d' : (session.overall_score ?? 0) >= 60 ? '#D4860A' : '#ef4444', lineHeight: 1 }}>{session.overall_score ?? '--'}</div>
+          <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>Overall</div>
         </div>
       </div>
 
       {/* Scores + Radar */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Score Breakdown</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>Score Breakdown</div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
           <RadarChartSmall scores={session} />
           <div style={{ flex: 1, minWidth: 180 }}>
@@ -198,7 +198,7 @@ function DrillDownView({ session }: { session: Session }) {
         <div className="dash-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {session.strengths?.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>✓ Strengths</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>✓ Strengths</div>
               {session.strengths.map((s, i) => (
                 <div key={i} style={{ fontSize: 12, color: '#374151', lineHeight: 1.5, marginBottom: 6 }}>{s}</div>
               ))}
@@ -268,12 +268,12 @@ function DrillDownView({ session }: { session: Session }) {
 export default function ReviewsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ display_name: string; avatar_initial: string } | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -283,12 +283,12 @@ export default function ReviewsPage() {
       .then(d => { if (d.profile) setProfile(d.profile); setNameInput(d.profile?.display_name || ''); })
       .catch(() => {});
     fetch('/api/sessions')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then(d => {
         setSessions(d.sessions || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoadError(true); setLoading(false); });
   }, []);
 
   const selected = sessions.find(s => s.id === selectedId) || null;
@@ -296,33 +296,30 @@ export default function ReviewsPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
       {/* Mobile sidebar */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, width: 220,
-        transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s ease',
-      }}>
-        <Sidebar active="reviews" />
-      </div>
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
-      )}
 
       <div style={{ flex: 1, overflow: 'auto' }} className="reviews-main-content">
         {/* Header */}
-        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>⭐ Session Reviews</div>
+        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <DashboardNav active="reviews" />
+          <h1 className="dash-page-title" style={{ fontSize: 20 }}><span aria-hidden="true">⭐ </span>Session Reviews</h1>
         </header>
 
         <div className="reviews-main-grid" style={{ padding: 28, display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, alignItems: 'start' }}>
           {/* Left: session list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
-              {loading ? 'Loading...' : `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`}
+            <div role="status" style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+              {loading ? 'Loading sessions…' : loadError ? '' : `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`}
             </div>
-            {!loading && sessions.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '32px 16px', color: '#9ca3af', fontSize: 13 }}>
-                No sessions yet.<br /><a href="/dashboard/practice" style={{ color: '#D4860A' }}>Start practicing →</a>
+            {loadError && (
+              <div role="alert" className="dash-state dash-state-error">
+                We couldn&apos;t load your sessions.{' '}
+                <button type="button" className="dash-retry" onClick={() => window.location.reload()}>Try again</button>
+              </div>
+            )}
+            {!loading && !loadError && sessions.length === 0 && (
+              <div className="dash-state">
+                No sessions yet. Finish a practice call and its scored debrief shows up here.<br />
+                <a href="/dashboard/practice">Start practicing →</a>
               </div>
             )}
             {sessions.map(session => (
@@ -342,9 +339,9 @@ export default function ReviewsPage() {
             ) : (
               <div style={{
                 background: '#fff', borderRadius: 14, padding: 40, textAlign: 'center',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)', color: '#9ca3af', fontSize: 14,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)', color: '#6b7280', fontSize: 14,
               }}>
-                ← Select a session from the left to see the full breakdown
+                {sessions.length ? '← Select a session from the left to see the full breakdown.' : 'Your session breakdowns will appear here.'}
               </div>
             )}
           </div>
@@ -352,16 +349,12 @@ export default function ReviewsPage() {
       </div>
 
       <style>{`
-        @media (min-width: 769px) {
-          .hamburger-btn { display: block !important; }
-        }
         @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
           .main-content { margin-left: 0 !important; }
-          div[style*="grid-template-columns: 320px"] {
-            grid-template-columns: 1fr !important;
-          }
           .reviews-detail-desktop { display: none !important; }
+        }
+        @media (min-width: 769px) {
+          .reviews-inline-detail { display: none !important; }
         }
       `}</style>
     </div>
