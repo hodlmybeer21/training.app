@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TrainField AI — Voice Training for Beer Distribution Teams",
-  description: "The AI flight simulator for beer distribution sales teams. Practice every conversation before it happens — from angry retailer objections to annual reviews.",
+  title: {
+    default: "TrainField AI: Voice roleplay practice for beer sales reps",
+    template: "%s · TrainField AI",
+  },
+  description: "Rehearse tough buyer conversations out loud with an AI buyer, then get a scored debrief. Free demo, no account needed.",
 };
 
 export default function RootLayout({
