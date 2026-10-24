@@ -14,6 +14,18 @@ function getStripe(): Stripe {
   return _stripe;
 }
 
+// Checkout branding, so buyers see TrainField instead of the Stripe account name.
+// Colors are the site's --dark and --amber (src/app/globals.css); the icon is the
+// header LogoMark (src/components/site/Logo.tsx) rendered to public/trainfield-icon.png.
+// The icon always points at production so Stripe can fetch it from any deployment.
+type BrandingSettings = NonNullable<Parameters<Stripe['checkout']['sessions']['create']>[0]>['branding_settings'];
+const CHECKOUT_BRANDING: BrandingSettings = {
+  display_name: 'TrainField AI',
+  background_color: '#1A1208',
+  button_color: '#D4860A',
+  border_style: 'rounded',
+  icon: { type: 'url', url: 'https://training.goodbotai.tech/trainfield-icon.png' },
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,6 +56,7 @@ export async function POST(req: NextRequest) {
       // The webhook reads the tier from here (see tierFromCheckoutMetadata).
       metadata: { plan, tier },
       subscription_data: { metadata: { plan, tier } },
+      branding_settings: CHECKOUT_BRANDING,
     });
 
     return NextResponse.json({ url: session.url });
