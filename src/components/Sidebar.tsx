@@ -6,6 +6,7 @@ const NAV_ITEMS_ALL = [
   { emoji: '🏠', label: 'Dashboard', id: 'dashboard', href: '/dashboard' },
   { emoji: '🎤', label: 'Practice', id: 'practice', href: '/dashboard/practice' },
   { emoji: '👥', label: 'Personas', id: 'personas', href: '/dashboard/personas' },
+  { emoji: '🏪', label: 'Accounts', id: 'accounts', href: '/dashboard/accounts' },
   { emoji: '📊', label: 'Reviews', id: 'reviews', href: '/dashboard/reviews' },
   { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
   { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
