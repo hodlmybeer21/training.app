@@ -34,7 +34,7 @@ export default function PrivacyPage() {
             <li><strong>Practice sessions:</strong> transcripts, scores, feedback, and session length are saved in Supabase so you can review your progress. Your team&apos;s managers and the account admins can see them.</li>
             <li><strong>Team content:</strong> goals and custom personas your managers create are stored in Supabase.</li>
             <li><strong>Payments:</strong> checkout is handled by <strong>Stripe</strong>. We never see your full card number. We receive your email and subscription status.</li>
-            <li><strong>Welcome email:</strong> when you buy a plan, we use <strong>AgentMail</strong> to email your login details.</li>
+            <li><strong>Welcome email:</strong> when you buy a plan, we use <strong>AgentMail</strong> to email you a link to set your password.</li>
           </ul>
 
           <h2>Everyone</h2>

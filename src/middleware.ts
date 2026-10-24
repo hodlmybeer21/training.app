@@ -56,15 +56,9 @@ export async function middleware(req: NextRequest) {
   const userEmail = user.email ?? null
 
   if (path.startsWith('/dashboard')) {
-    // Admin page: profile role 'admin', or an email listed in ADMIN_EMAILS
+    // Admin page: only emails listed in ADMIN_EMAILS (same rule as /api/admin)
     if (path === '/dashboard/admin' || path === '/dashboard/admin/') {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single()
-
-      if (profile?.role !== 'admin' && !isAdminEmail(userEmail)) {
+      if (!isAdminEmail(userEmail)) {
         return NextResponse.redirect(new URL('/dashboard', req.url))
       }
     }
