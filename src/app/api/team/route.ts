@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/utils/supabase/server';
+import { getSessionUser } from '@/lib/server/auth';
 
 const SKILL_KEYS = ['discovery', 'objection_handling', 'value_articulation', 'confidence_pacing', 'closing_technique'] as const;
 
@@ -12,16 +12,8 @@ function avg(values: (number | null)[]): number | null {
 
 export async function GET(req: NextRequest) {
   try {
-    let userId: string | null = null;
-    try {
-      const sb = await createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {}
-
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

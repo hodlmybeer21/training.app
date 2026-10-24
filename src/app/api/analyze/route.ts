@@ -1,24 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/server/auth';
+import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
+import { cleanMessages, publicPersona, tooMany } from '@/lib/server/ai-guard';
 
-export const runtime = 'edge';
+const MINUTE = 60_000;
 
 export async function POST(req: NextRequest) {
   try {
-    const { transcript, scenarioName, durationSeconds, scoringHints } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
 
-    if (!transcript || !Array.isArray(transcript) || transcript.length === 0) {
-      return NextResponse.json({ error: 'Transcript required' }, { status: 400 });
+    const user = await getSessionUser();
+    let scenarioName: string;
+    let scoringHints = '';
+    let transcript;
+
+    if (user) {
+      const rl = rateLimitAll(`analyze:user:${user.id}`, [
+        { limit: 10, windowMs: 10 * MINUTE },
+        { limit: 60, windowMs: 24 * 60 * MINUTE },
+      ]);
+      if (!rl.ok) return tooMany(rl.retryAfterSeconds, true);
+      transcript = cleanMessages(body.transcript, { maxMessages: 80, maxCharsEach: 4000, maxCharsTotal: 40000, allowSystem: false });
+      scenarioName = typeof body.scenarioName === 'string' ? body.scenarioName.slice(0, 200) : 'General sales call';
+      scoringHints = typeof body.scoringHints === 'string' ? body.scoringHints.slice(0, 2000) : '';
+    } else {
+      // Public demo debrief: built-in personas only, small transcripts, tight limits.
+      const rl = rateLimitAll(`analyze:ip:${clientIp(req.headers)}`, [
+        { limit: 4, windowMs: 10 * MINUTE },
+        { limit: 15, windowMs: 24 * 60 * MINUTE },
+      ]);
+      if (!rl.ok) return tooMany(rl.retryAfterSeconds, false);
+      const persona = publicPersona(body.personaId);
+      if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+      transcript = cleanMessages(body.transcript, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
+      scenarioName = persona.name;
+    }
+    const durationSeconds = Number.isFinite(body.durationSeconds) ? Math.max(0, Math.floor(body.durationSeconds)) : 0;
+
+    if (!transcript) {
+      return NextResponse.json({ error: 'Transcript is empty or too long' }, { status: 400 });
+    }
+    if (!transcript.some(m => m.role === 'user')) {
+      return NextResponse.json({ error: 'Say something to the buyer before asking for a score' }, { status: 400 });
     }
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
     // Build readable transcript string
     const transcriptText = transcript
-      .filter((m: { role: string }) => m.role !== 'system')
-      .map((m: { role: string; content: string }) => {
+      .map((m) => {
         const speaker = m.role === 'user' ? 'Salesperson' : 'Prospect';
         return `${speaker}: ${m.content}`;
       })
@@ -78,8 +114,8 @@ Be specific — cite exact moments from the transcript in strengths and opportun
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      return NextResponse.json({ error: err }, { status: response.status });
+      console.error('Groq error', response.status);
+      return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
     }
 
     const data = await response.json();
@@ -92,12 +128,12 @@ Be specific — cite exact moments from the transcript in strengths and opportun
     try {
       analysis = JSON.parse(content);
     } catch {
-      return NextResponse.json({ error: 'Failed to parse analysis response', raw: content }, { status: 500 });
+      return NextResponse.json({ error: 'Could not read the score. Try again.' }, { status: 502 });
     }
 
     return NextResponse.json({ analysis });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('analyze route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
   }
 }

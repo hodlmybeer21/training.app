@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { isAdminEmail } from '@/lib/admin';
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,9 +15,10 @@ export async function GET(req: NextRequest) {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return NextResponse.json({
-      profile: data || { display_name: user.email?.split('@')[0] || 'User', avatar_initial: (user.email?.[0] || 'U').toUpperCase(), bio: null, role: null, team_id: null }
-    });
+    const profile = data || { display_name: user.email?.split('@')[0] || 'User', avatar_initial: (user.email?.[0] || 'U').toUpperCase(), bio: null, role: null, team_id: null };
+    // isAdmin is computed on the server so no admin email has to ship to the browser.
+    const isAdmin = profile.role === 'admin' || isAdminEmail(user.email);
+    return NextResponse.json({ profile, isAdmin });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

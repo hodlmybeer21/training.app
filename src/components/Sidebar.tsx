@@ -10,36 +10,36 @@ const NAV_ITEMS_ALL = [
   { emoji: '📈', label: 'Progress', id: 'progress', href: '/dashboard/progress' },
   { emoji: '⚙️', label: 'Settings', id: 'settings', href: '/dashboard/settings' },
   { emoji: '🎯', label: 'My Team', id: 'manager', href: '/dashboard/manager', roles: ['manager', 'admin'] },
-  { emoji: '🛡️', label: 'Admin', id: 'admin', href: '/dashboard/admin', emails: ['tyler.dubuque@gmail.com'] },
+  { emoji: '🛡️', label: 'Admin', id: 'admin', href: '/dashboard/admin', adminOnly: true },
 ];
 
 function InlineSidebar({ active }: { active: string }) {
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email);
     });
-    // We need role too — fetch profile
-    supabase.fetch('/api/profile', { headers: {} }).then(r => r.json()).then(d => {
-      if (d.profile?.role) setRole(d.profile.role);
-    }).catch(() => {});
   }, []);
 
-  // Fetch profile for role
+  // Fetch profile for role and admin flag (computed server-side)
   useEffect(() => {
     if (!email) return;
     fetch('/api/profile')
       .then(r => r.json())
-      .then(d => { if (d.profile?.role) setRole(d.profile.role); })
+      .then(d => {
+        if (d.profile?.role) setRole(d.profile.role);
+        setIsAdmin(!!d.isAdmin);
+      })
       .catch(() => {});
   }, [email]);
 
   const visibleItems = NAV_ITEMS_ALL.filter(item => {
     if (item.roles && !item.roles.includes(role || '')) return false;
-    if (item.emails && !item.emails.includes(email || '')) return false;
+    if (item.adminOnly && !isAdmin) return false;
     return true;
   });
 

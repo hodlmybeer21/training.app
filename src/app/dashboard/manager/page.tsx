@@ -216,7 +216,7 @@ export default function ManagerPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    fetch('/api/team', { headers: { 'x-user-id': user?.id || '' } })
+    fetch('/api/team')
       .then((r) => r.json())
       .then((d) => {
         if (d.reps) setReps(d.reps);

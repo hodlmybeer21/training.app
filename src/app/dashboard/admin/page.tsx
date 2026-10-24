@@ -42,7 +42,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/admin', { headers: { 'x-user-id': user.id } })
+    fetch('/api/admin')
       .then(r => r.json())
       .then(d => {
         if (d.profiles) setProfiles(d.profiles);
@@ -58,7 +58,7 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create-manager',
           email: mgrEmail,
@@ -85,7 +85,7 @@ export default function AdminPage() {
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create-rep',
           email: repEmail,
@@ -107,7 +107,7 @@ export default function AdminPage() {
   async function handleUpdateRole(profile: Profile, newRole: string) {
     const res = await fetch('/api/admin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'update-role', userId: profile.id, role: newRole }),
     });
     const d = await res.json();
@@ -119,7 +119,7 @@ export default function AdminPage() {
     if (!confirm(`Delete ${profile.display_name || profile.email}? This cannot be undone.`)) return;
     const res = await fetch('/api/admin', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete-user', userId: profile.id }),
     });
     const d = await res.json();
@@ -128,7 +128,7 @@ export default function AdminPage() {
   }
 
   function refresh() {
-    fetch('/api/admin', { headers: { 'x-user-id': user?.id || '' } })
+    fetch('/api/admin')
       .then(r => r.json())
       .then(d => { if (d.profiles) setProfiles(d.profiles); });
   }

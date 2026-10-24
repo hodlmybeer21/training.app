@@ -157,7 +157,7 @@ export default function Dashboard() {
       .then(r => r.json())
       .then(d => { if (d.profile) setProfile(d.profile); })
       .catch(() => {});
-    fetch('/api/sessions', { headers: { 'x-user-id': user?.id || '' } })
+    fetch('/api/sessions')
       .then(r => r.json())
       .then(d => { setSessions(d.sessions || []); setLoading(false); })
       .catch(() => setLoading(false));

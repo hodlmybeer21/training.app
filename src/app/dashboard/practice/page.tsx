@@ -927,7 +927,6 @@ export default function PracticePage() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-user-id': currentUser?.id || '',
         },
         body: JSON.stringify({
           scenario_name: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/utils/supabase/server';
+import { getSessionUser } from '@/lib/server/auth';
 
 function buildGoalContext(goals: any[]): string {
   if (!goals || goals.length === 0) return '';
@@ -18,15 +18,8 @@ function buildGoalContext(goals: any[]): string {
 // GET /api/goals — fetch active goals for a team (rep) or managed team (manager)
 export async function GET(req: NextRequest) {
   try {
-    let userId: string | null = null;
-    try {
-      const sb = await createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {}
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -57,15 +50,8 @@ export async function GET(req: NextRequest) {
 // POST /api/goals — create a new goal (manager/admin only)
 export async function POST(req: NextRequest) {
   try {
-    let userId: string | null = null;
-    try {
-      const sb = await createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {}
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -115,15 +101,8 @@ export async function DELETE(req: NextRequest) {
     const id = url.pathname.split('/').pop();
     if (!id) return NextResponse.json({ error: 'Missing goal ID' }, { status: 400 });
 
-    let userId: string | null = null;
-    try {
-      const sb = await createClient();
-      const { data: { user } } = await sb.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {}
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -135,7 +114,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { error } = await sb.from('team_goals').update({ active: false }).eq('id', id);
+    const { error } = await sb.from('team_goals').update({ active: false }).eq('id', id).eq('team_id', profile.team_id);
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
