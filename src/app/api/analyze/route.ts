@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany } from '@/lib/server/ai-guard';
+import { groqChat } from '@/lib/server/groq-chat';
 
 const MINUTE = 60_000;
 
@@ -96,30 +97,19 @@ Scoring guidance:
 
 Be specific — cite exact moments from the transcript in strengths and opportunities. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: scoringPrompt },
-          { role: 'user', content: 'Analyze this transcript and return your JSON.' }
-        ],
-        temperature: 0.3,
-        max_tokens: 1024,
-      }),
+    const result = await groqChat(apiKey, {
+      messages: [
+        { role: 'system', content: scoringPrompt },
+        { role: 'user', content: 'Analyze this transcript and return your JSON.' }
+      ],
+      temperature: 0.3,
+      maxTokens: 1024,
+      json: true,
     });
-
-    if (!response.ok) {
-      console.error('Groq error', response.status);
+    if (!result.ok) {
       return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
     }
-
-    const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || '';
+    let content = result.content;
 
     // Strip markdown code fences if present
     content = content.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();

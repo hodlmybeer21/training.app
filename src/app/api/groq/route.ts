@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany, ChatMessage } from '@/lib/server/ai-guard';
+import { groqChat } from '@/lib/server/groq-chat';
 
 const MINUTE = 60_000;
 
@@ -45,27 +46,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages,
-        temperature: 0.8,
-        max_tokens: maxTokens,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('Groq error', response.status);
+    const result = await groqChat(apiKey, { messages, temperature: 0.8, maxTokens });
+    if (!result.ok) {
       return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
     }
-
-    const data = await response.json();
-    const reply = (data.choices?.[0]?.message?.content || '') as string;
+    const reply = result.content;
     return NextResponse.json({ choices: [{ message: { content: reply } }] });
   } catch (e: unknown) {
     console.error('groq route error', e instanceof Error ? e.message : e);
