@@ -1,30 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { createClient as createServerClient } from '@/utils/supabase/server';
+import { getSessionUser } from '@/lib/server/auth';
+import { isAdminEmail } from '@/lib/admin';
+import { createAdminClient as createSbAdmin } from '@/lib/server/supabase-admin';
+import { checkSeatAvailable } from '@/lib/server/seats';
 
-function createSbAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+const ALLOWED_ROLES = ['rep', 'manager', 'admin'];
+
+// Admin actions are allowed only for emails listed in the ADMIN_EMAILS env var.
+// profiles.role is not trusted here, because the profiles RLS policy lets a user
+// update their own row.
 
 export async function GET(req: NextRequest) {
   try {
-    const serverSb = await createServerClient();
-    const { data: { user } } = await serverSb.auth.getUser();
+    const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const sbAdmin = createSbAdmin();
-    const { data: profile } = await sbAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile as any).role !== 'admin') {
+    if (!isAdminEmail(user.email)) {
       return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 });
     }
+    const sbAdmin = createSbAdmin();
 
     // Get team names separately (no FK relationship in DB)
     const { data: allTeams } = await sbAdmin.from('teams').select('id, name');
@@ -49,20 +42,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: Request) {
   try {
-    const serverSb = await createServerClient();
-    const { data: { user: adminUser } } = await serverSb.auth.getUser();
+    const adminUser = await getSessionUser();
     if (!adminUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    const sbAdmin = createSbAdmin();
-    const { data: adminProfile } = await sbAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', adminUser.id)
-      .single();
-
-    if (!adminProfile || (adminProfile as any).role !== 'admin') {
+    if (!isAdminEmail(adminUser.email)) {
       return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 });
     }
+    const sbAdmin = createSbAdmin();
 
     const body = await req.json();
     const { action, email, password, role, teamName, managerId, teamCategory } = body;
@@ -108,10 +93,22 @@ export async function POST(req: Request) {
       }
       const { data: manager } = await sbAdmin
         .from('profiles')
-        .select('team_id')
+        .select('id, role, team_id')
         .eq('id', managerId)
         .single();
       if (!manager) return NextResponse.json({ error: 'Manager not found' }, { status: 404 });
+      if (manager.role !== 'manager' && manager.role !== 'admin') {
+        return NextResponse.json({ error: 'managerId must belong to a manager' }, { status: 400 });
+      }
+
+      // Enforce the team's plan seat limit before creating the login.
+      const seats = await checkSeatAvailable(sbAdmin, { id: manager.id, team_id: manager.team_id ?? null });
+      if (!seats.ok) {
+        return NextResponse.json(
+          { error: seats.error, code: 'seat_limit_reached', used: seats.used, limit: seats.limit },
+          { status: 403 },
+        );
+      }
 
       const { data: authUser, error: authErr } = await sbAdmin.auth.admin.createUser({
         email, password, email_confirm: true,
@@ -140,6 +137,7 @@ export async function POST(req: Request) {
     if (action === 'update-role') {
       const { userId, role: newRole } = body;
       if (!userId || !newRole) return NextResponse.json({ error: 'userId and role required' }, { status: 400 });
+      if (!ALLOWED_ROLES.includes(newRole)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
 
       const { data, error } = await sbAdmin
         .from('profiles')

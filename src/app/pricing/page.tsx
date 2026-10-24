@@ -78,7 +78,7 @@ const TIERS: Tier[] = [
 ];
 
 const FAQ: [string, string][] = [
-  ['How do I get an account?', "Pick a paid plan and check out with Stripe. We create your account and email your login details to the address you used at checkout. Teammates are added by your manager or by us."],
+  ['How do I get an account?', "Pick a paid plan and check out with Stripe. We create your account and email a link to the address you used at checkout so you can set your own password. Teammates are added by your manager or by us."],
   ['Can I try it first?', "Yes. The free demo on the home page needs no account. You get a full roleplay and a scored debrief. Demo calls aren't saved."],
   ['How do I cancel or change plans?', "Plans are billed monthly. To cancel or switch plans, contact us through goodbotai.tech and we'll take care of it. You won't be charged for the next month after you cancel."],
   ["Who can see my team's data?", "Your own practice history is visible to you, your team's managers, and the account admins. It isn't shared with other teams."],

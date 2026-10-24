@@ -79,11 +79,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function sendCredentialsEmail(email: string, password: string, tier: string) {
-  const AGENTMAIL_API_KEY = process.env.AGENTMAIL_API_KEY;
-  console.log(`📧 Attempting to send credentials email to ${email}`);
-  console.log(`  AgentMail configured:`, !!AGENTMAIL_API_KEY);
+// Builds the link that lets a new customer set their own password.
+// It points at our /set-password page with Supabase's one-time token hash, so it
+// does not depend on Supabase's redirect URL allow-list. No password is ever created here.
+function buildSetPasswordLink(hashedToken: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://training.goodbotai.tech';
+  return `${baseUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=invite`;
+}
 
+async function sendInviteEmail(email: string, link: string, tier: string) {
+  const AGENTMAIL_API_KEY = process.env.AGENTMAIL_API_KEY;
   if (!AGENTMAIL_API_KEY) {
     console.log('AgentMail not configured, skipping welcome email');
     return;
@@ -91,12 +96,12 @@ async function sendCredentialsEmail(email: string, password: string, tier: strin
 
   const tierLabel = TIER_DISPLAY[tier] || tier;
   const subject = `Your TrainField AI account is ready`;
-  const text = `Your TrainField AI ${tierLabel} account has been created.
+  const text = `Your TrainField AI ${tierLabel} account has been created for ${email}.
 
-Email: ${email}
-Password: ${password}
+Set your password here to finish signing up:
+${link}
 
-Log in at https://training.goodbotai.tech/login
+This link works once and expires soon. If it has expired, reply to this email and we'll send a new one.
 
 Welcome aboard!
 — TrainField AI`;
@@ -115,16 +120,10 @@ Welcome aboard!
         from: 'goodbot@agentmail.to',
       }),
     });
-    console.log(`  Email API response status: ${res.status}`);
-    const data = await res.json();
-    console.log(`  Email API response:`, JSON.stringify(data).substring(0, 200));
-    if (data.id || data.message_id) {
-      console.log(`📧 Welcome email sent to ${email}`);
-    } else {
-      console.log('AgentMail response:', data);
-    }
+    // Only the status is logged: the response may echo the message body (which holds the link).
+    console.log(`  Invite email API response status: ${res.status}`);
   } catch (e: any) {
-    console.error('Failed to send welcome email:', e.message);
+    console.error('Failed to send invite email:', e.message);
   }
 }
 
@@ -159,8 +158,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const supabase = getSupabaseAdmin();
   console.log('  supabase client created');
-  const tempPassword = generateSecurePassword();
-  console.log('  tempPassword generated');
 
   console.log('  Calling listUsers...');
   const { data: allUsers, error: listError } = await supabase.auth.admin.listUsers();
@@ -171,38 +168,46 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (existingUser) {
     console.log('User exists - updating profile only');
+    // app_metadata can only be written with the service role, so it is the trusted
+    // record of the paid plan (used for team seat limits).
+    const { error: metaError } = await supabase.auth.admin.updateUserById(existingUser.id, {
+      app_metadata: { ...(existingUser.app_metadata || {}), tier },
+    });
+    console.log('  appMetadataError:', metaError?.message || null);
     const { error: profileUpsertError } = await supabase.from('profiles').upsert({ id: existingUser.id, role: tier });
     console.log('  profileUpsertError:', profileUpsertError);
     console.log('=== END (existing user) ===');
     return;
   }
 
-  console.log('Creating new user...');
-  const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+  // Create the user through Supabase's invite flow. No password is generated:
+  // the customer sets their own from the emailed link.
+  console.log('Creating invited user...');
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    type: 'invite',
     email,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: { tier },
+    options: { data: { tier } },
   });
-  console.log('  authError:', authError);
-  console.log('  authUser:', authUser?.user?.id);
-
-  if (authError) {
-    console.error('Auth user creation error:', authError);
-    console.log('=== END (auth error) ===');
+  if (linkError || !linkData?.user || !linkData.properties?.hashed_token) {
+    console.error('Invite creation error:', linkError?.message || 'missing user or token');
+    console.log('=== END (invite error) ===');
     return;
   }
 
-  const userId = authUser.user!.id;
+  const userId = linkData.user.id;
   console.log('  userId:', userId);
+
+  const { error: metaError } = await supabase.auth.admin.updateUserById(userId, {
+    app_metadata: { ...(linkData.user.app_metadata || {}), tier },
+  });
+  console.log('  appMetadataError:', metaError?.message || null);
 
   const { error: profileInsertError } = await supabase.from('profiles').insert({ id: userId, role: tier });
   console.log('  profileInsertError:', profileInsertError);
 
-  console.log('Sending credentials email to:', email);
-  await sendCredentialsEmail(email, tempPassword, tier);
+  await sendInviteEmail(email, buildSetPasswordLink(linkData.properties.hashed_token), tier);
 
-  console.log(`✅ Created account for ${email} (tier: ${TIER_DISPLAY[tier]}) — credentials emailed`);
+  console.log(`✅ Created account (tier: ${TIER_DISPLAY[tier]}) — set-password link emailed`);
   console.log('=== END (success) ===');
 }
 
@@ -213,11 +218,4 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   const tier = TIER_ROLE_MAP[priceId];
   if (!tier) return;
   console.log(`📝 Renewal for customer ${customerId}, tier: ${TIER_DISPLAY[tier]}`);
-}
-
-function generateSecurePassword(length = 20): string {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
-  const array = new Uint8Array(length || 20);
-  crypto.getRandomValues(array);
-  return Array.from(array, (b) => chars[b % chars.length]).join('');
 }

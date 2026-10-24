@@ -4,7 +4,7 @@ const SITE = 'https://training.goodbotai.tech';
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/dashboard'] },
+    rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/dashboard', '/set-password'] },
     sitemap: `${SITE}/sitemap.xml`,
   };
 }
