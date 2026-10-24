@@ -7,6 +7,8 @@ import { Persona } from '@/lib/personas';
 import { CATEGORIES } from '@/lib/categories';
 import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 import { getCategoryById } from '@/lib/categories';
+import { SAMPLE_INCENTIVES, getSampleIncentive, incentiveBuyerPrompt, normalizeIncentiveGoal } from '@/lib/incentives';
+import { IncentiveBrief, IncentiveGoalCard, SampleBadge } from '@/components/Incentives';
 
 // Build ALL_PERSONAS from every category so the selector always has a complete list
 function buildAllPersonas() {
@@ -735,6 +737,9 @@ export default function PracticePage() {
   });
   const [dealStage, setDealStage] = useState<'initial-pitch'|'proposal'|'negotiation'|'renewal'>('initial-pitch');
   const [difficulty, setDifficulty] = useState<'easy'|'challenging'|'intense'>('challenging');
+  // Optional sample incentive program the rep pitches toward (fictional, for demos).
+  const [incentiveId, setIncentiveId] = useState('');
+  const incentive = getSampleIncentive(incentiveId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [callSeconds, setCallSeconds] = useState(0);
   const [status, setStatus] = useState<'idle' | 'speaking' | 'listening' | 'thinking'>('idle');
@@ -764,9 +769,25 @@ export default function PracticePage() {
   const wantedPersonaRef = useRef<string | null>(null);
   const [practiceAccount, setPracticeAccount] = useState<{ id: string; name: string } | null>(null);
 
-  // Preselect a persona when arriving from the Persona Library (?persona=<id>).
+  const selectPersonaById = (id: string) => {
+    for (const [categoryId, personas] of Object.entries(PERSONA_BY_CATEGORY)) {
+      const match = personas.find((p: Persona) => p.id === id);
+      if (match) { setSelectedCategory(categoryId); setSelectedPersona(match); return true; }
+    }
+    return false;
+  };
+
+  // Preselect a persona when arriving from the Persona Library (?persona=<id>),
+  // and a sample incentive from the dashboard Incentives section (?incentive=<id>).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const wantedIncentive = getSampleIncentive(params.get('incentive'));
+    if (wantedIncentive) {
+      // Reads the URL once after mount; doing it during render would break hydration.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIncentiveId(wantedIncentive.id);
+      if (!params.get('persona')) selectPersonaById(wantedIncentive.personaId);
+    }
     const accountId = params.get('account');
     if (accountId && /^[0-9a-f-]{36}$/i.test(accountId)) {
       accountIdRef.current = accountId;
@@ -785,8 +806,6 @@ export default function PracticePage() {
     for (const [categoryId, personas] of Object.entries(PERSONA_BY_CATEGORY)) {
       const match = personas.find((p: Persona) => p.id === wanted);
       if (match) {
-        // Reads the URL once after mount; doing it during render would break hydration.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedCategory(categoryId);
         setSelectedPersona(match);
         return;
@@ -849,7 +868,7 @@ export default function PracticePage() {
       'challenging': `\n[DIFFICULTY: CHALLENGING] The prospect is realistic and skeptical. They ask fair questions and push back on things that don't make sense. You must earn their trust through good answers, not charm. Respond with substance.`,
       'intense': `\n[DIFFICULTY: INTENSE] The prospect is aggressive, demanding, and uses pressure tactics. They will interrupt, issue ultimatums, and try to make you feel desperate. Do NOT show desperation. Stay composed. They may say "I have other options" or make extreme demands. Your job is to match their intensity with calm confidence and redirect to real value.`,
     };
-    return base + (stageContext[dealStage] || '') + (difficultyMod[difficulty] || '');
+    return base + (stageContext[dealStage] || '') + (difficultyMod[difficulty] || '') + (incentive ? incentiveBuyerPrompt(incentive) : '');
   };
 
   const getBrief = () => {
@@ -957,6 +976,7 @@ export default function PracticePage() {
           scenarioName: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,
           durationSeconds: callSeconds,
           scoringHints: (selectedPersona as any).scoring_hints || '',
+          ...(incentive ? { incentiveId: incentive.id } : {}),
         }),
       });
       if (!res.ok) throw new Error('Analysis failed');
@@ -969,7 +989,7 @@ export default function PracticePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          scenario_name: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,
+          scenario_name: `${selectedPersona.name} [${dealStage}] [${difficulty}]${incentive ? ` [sample incentive: ${incentive.name}]` : ''}`,
           deal_stage: dealStage,
           difficulty_level: difficulty,
           transcript: conversationRef.current.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`),
@@ -1052,6 +1072,24 @@ export default function PracticePage() {
               />
               <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={(getCategoryById(selectedCategory)?.dealStages || CATEGORIES[0].dealStages).map(s => ({ value: s.id, label: s.label }))} />
               <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
+              <Select
+                label="Incentive Goal"
+                value={incentiveId}
+                onChange={v => {
+                  setIncentiveId(v);
+                  const next = getSampleIncentive(v);
+                  if (next) selectPersonaById(next.personaId);
+                }}
+                options={[
+                  { value: '', label: 'None (general call)' },
+                  ...SAMPLE_INCENTIVES.map(i => ({ value: i.id, label: `${i.emoji} ${i.name} (sample)` })),
+                ]}
+              />
+              {incentive && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 12px', fontSize: 11, color: '#6b7280' }}>
+                  <SampleBadge /> Fictional brand and payout for practice.
+                </div>
+              )}
               <button
                 onClick={launchCall}
                 style={{ width: '100%', marginTop: 8, padding: '14px', background: '#D4860A', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}
@@ -1063,6 +1101,7 @@ export default function PracticePage() {
             {/* Right: Context brief */}
             <Card>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 20 }}>Scenario Brief</div>
+              {incentive && <IncentiveBrief incentive={incentive} />}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid #f3f4f6' }}>
                 <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(212,134,10,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{selectedPersona.emoji}</div>
                 <div>
@@ -1204,9 +1243,17 @@ export default function PracticePage() {
               </div>
               <div>
                 <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6 }}>Talking points</div>
+                {incentive ? (
+                  <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.6, background: '#FDF3DC', borderRadius: 8, padding: '10px 12px', borderLeft: '3px solid #D4860A' }}>
+                    <div style={{ marginBottom: 6 }}><SampleBadge /></div>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Ask for: {incentive.ask}</div>
+                    {incentive.talkingPoints.map(t => <div key={t}>◆ {t}</div>)}
+                  </div>
+                ) : (
                 <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.6, background: '#f9fafb', borderRadius: 8, padding: '10px 12px', borderLeft: '3px solid #D4860A' }}>
                   Lead with velocity data. Ask what they'd need to see to move forward today. Don't mention price until they've asked.
                 </div>
+                )}
               </div>
             </Card>
           </div>
@@ -1282,6 +1329,10 @@ export default function PracticePage() {
 
               {/* Right: AI Coach */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {(() => {
+                  const goal = incentive ? normalizeIncentiveGoal(reviewData?.incentiveGoal) : null;
+                  return incentive && goal ? <IncentiveGoalCard goal={goal} incentive={incentive} /> : null;
+                })()}
                 <Card>
                   <div style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 16 }}>AI Coach</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

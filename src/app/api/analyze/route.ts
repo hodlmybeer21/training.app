@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany } from '@/lib/server/ai-guard';
 import { groqChat } from '@/lib/server/groq-chat';
+import { getSampleIncentive, incentiveScoringPrompt, INCENTIVE_JSON_FIELD, normalizeIncentiveGoal } from '@/lib/incentives';
 
 const MINUTE = 60_000;
 
@@ -39,6 +40,9 @@ export async function POST(req: NextRequest) {
       transcript = cleanMessages(body.transcript, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
       scenarioName = persona.name;
     }
+    // Optional sample incentive (both paths): resolved from server-side data by id.
+    const incentive = body.incentiveId ? getSampleIncentive(body.incentiveId) : null;
+    if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
     const durationSeconds = Number.isFinite(body.durationSeconds) ? Math.max(0, Math.floor(body.durationSeconds)) : 0;
 
     if (!transcript) {
@@ -65,9 +69,11 @@ export async function POST(req: NextRequest) {
       ? `\n\nPERSONA-SPECIFIC SCORING CONTEXT:\n${scoringHints}\n\nUse these specific criteria when evaluating the salesperson's performance in this scenario.`
       : '';
 
+    const incentiveContext = incentive ? incentiveScoringPrompt(incentive) : '';
+
     const scoringPrompt = `You are an expert sales coach analyzing a recorded sales roleplay. Your job is to give honest, specific, actionable feedback.
 
-SCENARIO: ${scenarioName || 'General sales call'}${scenarioContext}
+SCENARIO: ${scenarioName || 'General sales call'}${scenarioContext}${incentiveContext}
 DURATION: ${durationSeconds ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` : 'Unknown'}
 
 TRANSCRIPT:
@@ -84,7 +90,7 @@ Analyze the salesperson's performance and return a JSON object with this exact s
   "strengths": ["specific example from transcript", "specific example from transcript"],
   "opportunities": ["specific example from transcript", "specific example from transcript"],
   "coachingTips": ["specific actionable tip based on what happened", "specific actionable tip based on what happened"],
-  "recommendedDrill": "1-2 sentence description of the best next practice scenario based on their weakest area"
+  "recommendedDrill": "1-2 sentence description of the best next practice scenario based on their weakest area"${incentive ? `,\n  ${INCENTIVE_JSON_FIELD}` : ''}
 }
 
 Scoring guidance:
@@ -93,7 +99,8 @@ Scoring guidance:
 - Objection Handling: did they address pushback without conceding too quickly?
 - Value Articulation: did they lead with ROI, margin impact, or differentiation before price?
 - Confidence & Pacing: were they concise, confident, or did they ramble / trail off?
-- Closing Technique: did they ask for the order, push for a next step, or try to close?
+- Closing Technique: did they ask for the order, push for a next step, or try to close?${incentive ? `
+- incentiveGoal: "asked" is true only if the salesperson explicitly asked for the specific placement, stack, volume or pre-book. "outcome" is what the buyer actually agreed to. "score" rates how well they advanced that goal (0 if never asked).` : ''}
 
 Be specific — cite exact moments from the transcript in strengths and opportunities. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
 
@@ -119,6 +126,13 @@ Be specific — cite exact moments from the transcript in strengths and opportun
       analysis = JSON.parse(content);
     } catch {
       return NextResponse.json({ error: 'Could not read the score. Try again.' }, { status: 502 });
+    }
+
+    if (incentive && analysis && typeof analysis === 'object') {
+      const goal = normalizeIncentiveGoal(analysis.incentiveGoal);
+      analysis.incentiveGoal = goal ? { ...goal, incentiveId: incentive.id, incentiveName: incentive.name, sample: true } : undefined;
+    } else if (analysis && typeof analysis === 'object') {
+      delete analysis.incentiveGoal;
     }
 
     return NextResponse.json({ analysis });

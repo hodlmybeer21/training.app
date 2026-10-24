@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import DashboardNav from '@/components/DashboardNav';
+import { IncentivesSection } from '@/components/Incentives';
 import { User } from '@supabase/supabase-js';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -205,6 +206,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        <IncentivesSection />
 
         <div className="dash-grid" style={{ padding: 28, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: 20 }}>
           {/* Skill Readiness Radar */}
