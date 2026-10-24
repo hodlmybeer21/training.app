@@ -95,7 +95,7 @@ function scenarioEmoji(name: string): string {
   if (n.includes('grocery') || n.includes('chain')) return '🛒';
   if (n.includes('hostile') || n.includes('procurement')) return '🔥';
   if (n.includes('bar') || n.includes('restaurant') || n.includes('on-premise')) return '🍺';
-  if (n.includes('liquor') || n.includes('package')) return '🏪';
+  if (n.includes('liquor') || n.includes('package') || n.includes('wine shop')) return '🏪';
   if (n.includes('convenience') || n.includes('c-store')) return '⛽';
   if (n.includes('district') || n.includes('manager')) return '📊';
   if (n.includes('route') || n.includes('rep')) return '🚚';

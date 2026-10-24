@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
     const profile = data || { display_name: user.email?.split('@')[0] || 'User', avatar_initial: (user.email?.[0] || 'U').toUpperCase(), bio: null, role: null, team_id: null };
     // isAdmin is computed on the server so no admin email has to ship to the browser.
     const isAdmin = profile.role === 'admin' || isAdminEmail(user.email);
-    return NextResponse.json({ profile, isAdmin });
+    // Best effort: team name for the settings page (null if not readable).
+    let teamName: string | null = null;
+    if (profile.team_id) {
+      const { data: team } = await supabase.from('teams').select('name').eq('id', profile.team_id).maybeSingle();
+      teamName = team?.name ?? null;
+    }
+    return NextResponse.json({ profile, isAdmin, teamName });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

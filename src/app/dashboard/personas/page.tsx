@@ -24,7 +24,7 @@ function PersonaCard({ persona, expanded, onToggle }: PersonaCardProps) {
     'exit-interview': { dealObj: 'Give honest talk on culture without corporate deflection', win: 'Building trust with genuine answers over company line' },
     'nh-grocery-buyer': { dealObj: 'Secure 3 cold-box endcap positions for summer craft lineup', win: '90-day trial with velocity targets, signed deal memo by end of call' },
     'nh-convenience-buyer': { dealObj: 'Win cooler door space at a regional c-store chain', win: 'Confirm delivery windows + promo/staff training package' },
-    'nh-liquor-store-owner': { dealObj: 'Earn shelf space at an 18-year craft-savvy independent', win: 'Name real moving accounts, commit to tastings and rep visits' },
+    'nh-liquor-store-owner': { dealObj: 'Earn shelf space at an 18-year craft-savvy beer & wine shop', win: 'Name real moving accounts, commit to tastings and rep visits' },
     'nh-bar-owner': { dealObj: 'Win tap handles + pour pricing with slow-Tuesday support', win: 'Tap exclusivity in territory + events/tap takeover plan' },
     'nh-restaurant-buyer': { dealObj: 'Position as premium craft addition for upscale dining menu', win: 'POS materials, staff training, and tap exclusivity commitment' },
     'nh-district-manager': { dealObj: 'Present premium mix protection and fill rate recovery plan', win: 'Agreed action plan with milestones and honest field reporting commitment' },

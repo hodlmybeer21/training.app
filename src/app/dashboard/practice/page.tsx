@@ -172,7 +172,7 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
   'nh-grocery-buyer': {
     prospectName: 'Karen M.',
     prospectTitle: 'Regional Grocery Buyer',
-    dealObjective: 'Secure 3 cold-box endcap positions for summer craft lineup at 4 NH Market Basket locations. They see 20 reps a week — come with velocity data, not stories.',
+    dealObjective: 'Secure 3 cold-box endcap positions for summer craft lineup at 4 Granite Basket Markets stores. They see 20 reps a week — come with velocity data, not stories.',
     objections: [
       'Slotting fee structure is unclear or too high',
       'Unproven velocity data — they want case counts',
@@ -201,8 +201,8 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
   },
   'nh-liquor-store-owner': {
     prospectName: 'Mike T.',
-    prospectTitle: 'NH Liquor Store Owner',
-    dealObjective: 'Get shelf space at an independent package store — 18 years in the business, craft-savvy. They don\'t carry anything they can\'t stand behind. Know your brands cold.',
+    prospectTitle: 'Beer & Wine Shop Owner',
+    dealObjective: 'Get shelf space at an independent beer & wine shop (in NH, spirits are sold only at state-run stores) — 18 years in the business, craft-savvy. They don\'t carry anything they can\'t stand behind. Know your brands cold.',
     objections: [
       '"I\'ve been doing this 18 years — give me three accounts actually moving it"',
       'Craft credibility is non-negotiable',
