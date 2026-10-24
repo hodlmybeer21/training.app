@@ -758,11 +758,30 @@ export default function PracticePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const groqErrorRef = useRef('');
   const goalsContextRef = useRef('');
+  // Store-owner account this run is for (?account=<id>), saved on the session so the
+  // Accounts page can show scores per owner.
+  const accountIdRef = useRef<string | null>(null);
+  const wantedPersonaRef = useRef<string | null>(null);
+  const [practiceAccount, setPracticeAccount] = useState<{ id: string; name: string } | null>(null);
 
   // Preselect a persona when arriving from the Persona Library (?persona=<id>).
   useEffect(() => {
-    const wanted = new URLSearchParams(window.location.search).get('persona');
+    const params = new URLSearchParams(window.location.search);
+    const accountId = params.get('account');
+    if (accountId && /^[0-9a-f-]{36}$/i.test(accountId)) {
+      accountIdRef.current = accountId;
+      fetch('/api/accounts')
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const a = d?.accounts?.find((x: { id: string }) => x.id === accountId);
+          if (a) setPracticeAccount({ id: a.id, name: a.name });
+          else accountIdRef.current = null;
+        })
+        .catch(() => {});
+    }
+    const wanted = params.get('persona');
     if (!wanted) return;
+    wantedPersonaRef.current = wanted;
     for (const [categoryId, personas] of Object.entries(PERSONA_BY_CATEGORY)) {
       const match = personas.find((p: Persona) => p.id === wanted);
       if (match) {
@@ -796,7 +815,7 @@ export default function PracticePage() {
       .then(r => r.json())
       .then(d => {
         if (Array.isArray(d.personas)) {
-          setCustomPersonas(d.personas.filter((p: any) => p.active).map((p: any) => ({
+          const team = d.personas.filter((p: any) => p.active).map((p: any) => ({
             id: p.id,
             name: p.name,
             emoji: p.emoji,
@@ -807,7 +826,11 @@ export default function PracticePage() {
             voicePitch: p.voice_pitch,
             voiceRate: p.voice_rate,
             scoring_hints: p.scoring_hints || '',
-          })));
+          }));
+          setCustomPersonas(team);
+          // A team persona requested via ?persona=<id> can only be matched once loaded.
+          const match = team.find((p: Persona) => p.id === wantedPersonaRef.current);
+          if (match) setSelectedPersona(match);
         }
       })
       .catch(() => {});
@@ -954,6 +977,7 @@ export default function PracticePage() {
           coaching_tips: data.analysis.coachingTips,
           recommended_drill: data.analysis.recommendedDrill,
           duration_seconds: callSeconds,
+          account_id: accountIdRef.current,
         }),
       }).then(r => r.ok ? null : console.error('Session save failed', r.status))
       .catch(e => console.error('Session save error', e));
@@ -977,6 +1001,11 @@ export default function PracticePage() {
           <h1 className="dash-page-title" style={{ fontSize: 20 }}><span aria-hidden="true">🎤 </span>Practice</h1>
         </header>
         {/* ── SETUP PHASE ── */}
+        {phase === 'setup' && practiceAccount && (
+          <div role="status" className="dash-banner" style={{ margin: '24px 32px 0', padding: '12px 16px', background: '#fff7e6', border: '1px solid rgba(212,134,10,0.35)', borderRadius: 10, fontSize: 13, color: '#374151' }}>
+            Practicing for <strong>{practiceAccount.name}</strong>. This run&apos;s score will show on that account. <a href="/dashboard/accounts" style={{ color: '#b45309', fontWeight: 600 }}>Back to accounts</a>
+          </div>
+        )}
         {phase === 'setup' && (
           <div className="practice-grid-setup practice-pad" style={{ padding: 32, display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24, alignItems: 'start' }}>
             {/* Left: Setup */}
@@ -1013,10 +1042,13 @@ export default function PracticePage() {
                 label="Persona"
                 value={selectedPersona.id}
                 onChange={v => {
-                  const personas = getPersonasForCategory(selectedCategory);
+                  const personas = [...getPersonasForCategory(selectedCategory), ...customPersonas];
                   setSelectedPersona(personas.find(p => p.id === v) || personas[0] || ALL_PERSONAS[0]);
                 }}
-                options={getPersonasForCategory(selectedCategory).map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` }))}
+                options={[
+                  ...getPersonasForCategory(selectedCategory).map(p => ({ value: p.id, label: `${p.emoji} ${p.name}` })),
+                  ...customPersonas.map(p => ({ value: p.id, label: `${p.emoji} ${p.name} (team)` })),
+                ]}
               />
               <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={(getCategoryById(selectedCategory)?.dealStages || CATEGORIES[0].dealStages).map(s => ({ value: s.id, label: s.label }))} />
               <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
