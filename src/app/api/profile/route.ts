@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     if (error && error.code !== 'PGRST116') throw error;
     const profile = data || { display_name: user.email?.split('@')[0] || 'User', avatar_initial: (user.email?.[0] || 'U').toUpperCase(), bio: null, role: null, team_id: null };
     // isAdmin is computed on the server so no admin email has to ship to the browser.
-    // Admin = email listed in ADMIN_EMAILS (profiles.role is user-editable under current RLS).
+    // Admin = email listed in ADMIN_EMAILS.
     const isAdmin = isAdminEmail(user.email);
     // Best effort: team name for the settings page (null if not readable).
     let teamName: string | null = null;

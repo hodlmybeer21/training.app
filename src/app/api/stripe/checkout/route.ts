@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { PLANS, isPlanKey, priceIdForPlan } from '@/lib/tiers';
 
 let _stripe: Stripe | null = null;
 
@@ -13,19 +14,18 @@ function getStripe(): Stripe {
   return _stripe;
 }
 
-const PRICE_IDS: Record<string, string> = {
-  'solo':  'price_1TWQx5ItqtvZaj2wNbzj7QTH',
-  'small': 'price_1TWQyBItqtvZaj2wHA2n7Dvm',
-  'team':  'price_1TWQzEItqtvZaj2wHyT8EdHY',
-};
 
 export async function POST(req: NextRequest) {
   try {
-    const { priceId, successUrl, cancelUrl, email } = await req.json();
+    // The pricing page sends a plan key ("solo" | "small" | "team") as `priceId`.
+    const body = await req.json();
+    const plan = body.plan ?? body.priceId;
+    const { successUrl, cancelUrl, email } = body;
 
-    if (!priceId || !PRICE_IDS[priceId]) {
-      return NextResponse.json({ error: 'Invalid price ID' }, { status: 400 });
+    if (!isPlanKey(plan)) {
+      return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
+    const tier = PLANS[plan].tier;
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://training.goodbotai.tech';
 
@@ -34,20 +34,21 @@ export async function POST(req: NextRequest) {
       payment_method_types: ['card'],
       line_items: [
         {
-          price: PRICE_IDS[priceId]!,
+          price: priceIdForPlan(plan),
           quantity: 1,
         },
       ],
       customer_email: email || undefined,
       success_url: successUrl || `${baseUrl}/dashboard?upgrade=success`,
       cancel_url: cancelUrl || `${baseUrl}/pricing`,
-      metadata: {
-        priceId,
-      },
+      // The webhook reads the tier from here (see tierFromCheckoutMetadata).
+      metadata: { plan, tier },
+      subscription_data: { metadata: { plan, tier } },
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    console.error('Checkout session error:', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Checkout is not available right now.' }, { status: 500 });
   }
 }

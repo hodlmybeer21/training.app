@@ -3,12 +3,16 @@ import { getSessionUser } from '@/lib/server/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { createAdminClient as createSbAdmin } from '@/lib/server/supabase-admin';
 import { checkSeatAvailable } from '@/lib/server/seats';
+import { createInvitedUser, sendInviteEmail } from '@/lib/server/invites';
+import { VALID_ROLES } from '@/lib/tiers';
 
-const ALLOWED_ROLES = ['rep', 'manager', 'admin'];
+const ALLOWED_ROLES: readonly string[] = VALID_ROLES;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Admin actions are allowed only for emails listed in the ADMIN_EMAILS env var.
-// profiles.role is not trusted here, because the profiles RLS policy lets a user
-// update their own row.
+// New managers and reps are created through Supabase's invite flow: the admin never
+// sets or sees a password. The response carries the one-time set-password link so
+// the admin can pass it on if the email does not arrive.
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,17 +54,21 @@ export async function POST(req: Request) {
     const sbAdmin = createSbAdmin();
 
     const body = await req.json();
-    const { action, email, password, role, teamName, managerId, teamCategory } = body;
+    const { action, teamName, managerId, teamCategory } = body;
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
     // ─── CREATE MANAGER ───────────────────────────────────────────────
     if (action === 'create-manager') {
-      if (!email || !password || !teamName) {
-        return NextResponse.json({ error: 'email, password, teamName required' }, { status: 400 });
+      if (!EMAIL_RE.test(email) || !teamName) {
+        return NextResponse.json({ error: 'email and teamName required' }, { status: 400 });
       }
-      const { data: authUser, error: authErr } = await sbAdmin.auth.admin.createUser({
-        email, password, email_confirm: true,
-      });
-      if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 });
+      let invited;
+      try {
+        invited = await createInvitedUser(sbAdmin, email);
+      } catch (err) {
+        return NextResponse.json({ error: err instanceof Error ? err.message : 'Invite failed' }, { status: 400 });
+      }
+      const authUser = { user: invited.user };
 
       const { data: team, error: teamErr } = await sbAdmin
         .from('teams')
@@ -83,13 +91,14 @@ export async function POST(req: Request) {
         .single();
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
-      return NextResponse.json({ user: profile, team }, { status: 201 });
+      const emailed = await sendInviteEmail(email, invited.link, `A TrainField AI manager account has been created for ${email} (team: ${teamName}).`);
+      return NextResponse.json({ user: profile, team, inviteLink: invited.link, emailed }, { status: 201 });
     }
 
     // ─── CREATE REP ──────────────────────────────────────────────────
     if (action === 'create-rep') {
-      if (!email || !password || !managerId) {
-        return NextResponse.json({ error: 'email, password, managerId required' }, { status: 400 });
+      if (!EMAIL_RE.test(email) || !managerId) {
+        return NextResponse.json({ error: 'email and managerId required' }, { status: 400 });
       }
       const { data: manager } = await sbAdmin
         .from('profiles')
@@ -110,10 +119,13 @@ export async function POST(req: Request) {
         );
       }
 
-      const { data: authUser, error: authErr } = await sbAdmin.auth.admin.createUser({
-        email, password, email_confirm: true,
-      });
-      if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 });
+      let invited;
+      try {
+        invited = await createInvitedUser(sbAdmin, email);
+      } catch (err) {
+        return NextResponse.json({ error: err instanceof Error ? err.message : 'Invite failed' }, { status: 400 });
+      }
+      const authUser = { user: invited.user };
 
       // Use upsert so profile is created if auth user was just created
       const { data: profile, error: profileErr } = await sbAdmin
@@ -130,7 +142,8 @@ export async function POST(req: Request) {
         .single();
       if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
 
-      return NextResponse.json({ user: profile }, { status: 201 });
+      const emailed = await sendInviteEmail(email, invited.link, `A TrainField AI rep account has been created for ${email}.`);
+      return NextResponse.json({ user: profile, inviteLink: invited.link, emailed }, { status: 201 });
     }
 
     // ─── UPDATE USER ROLE ────────────────────────────────────────────

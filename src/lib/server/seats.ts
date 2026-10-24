@@ -1,9 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { seatLimitFor, isPaidTier, TIER_DISPLAY, type PaidTier } from '@/lib/tiers';
+import { seatLimitFor, isPaidTier, TIER_DISPLAY, DEFAULT_SEAT_LIMIT, type PaidTier } from '@/lib/tiers';
 
 export type SeatCheck =
-  | { ok: true; used: number; limit: number | null; tier: PaidTier | null }
-  | { ok: false; used: number; limit: number; tier: PaidTier; error: string };
+  | { ok: true; used: number; limit: number; tier: PaidTier | null }
+  | { ok: false; used: number; limit: number; tier: PaidTier | null; error: string };
 
 type MemberRow = { id: string; role: string | null };
 
@@ -16,7 +16,7 @@ type MemberRow = { id: string; role: string | null };
  * The plan comes from the paying manager's auth app_metadata.tier, which only the
  * service role can write (set by the Stripe webhook). user_metadata is ignored
  * because users can edit it themselves. If no manager on the team has a paid tier
- * on record (for example a team an admin set up by hand), no limit is applied.
+ * on record (for example a team an admin set up by hand), DEFAULT_SEAT_LIMIT applies.
  */
 export async function checkSeatAvailable(
   sb: SupabaseClient,
@@ -48,14 +48,18 @@ export async function checkSeatAvailable(
   }
 
   const used = members.length;
-  if (limit === null || tier === null) return { ok: true, used, limit: null, tier: null };
+  if (limit === null || tier === null) {
+    tier = null;
+    limit = DEFAULT_SEAT_LIMIT;
+  }
   if (used >= limit) {
+    const plan = tier ? `the ${TIER_DISPLAY[tier]} plan` : 'the default limit (no paid plan on record)';
     return {
       ok: false,
       used,
       limit,
       tier,
-      error: `This team is using ${used} of ${limit} seats on the ${TIER_DISPLAY[tier]} plan. Remove someone or upgrade the plan to add another person.`,
+      error: `This team is using ${used} of ${limit} seats on ${plan}. Remove someone or upgrade the plan to add another person.`,
     };
   }
   return { ok: true, used, limit, tier };

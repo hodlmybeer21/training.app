@@ -25,13 +25,12 @@ export default function AdminPage() {
 
   // Create manager form
   const [mgrEmail, setMgrEmail] = useState('');
-  const [mgrPassword, setMgrPassword] = useState('');
   const [mgrTeamName, setMgrTeamName] = useState('');
   const [mgrCategory, setMgrCategory] = useState('beer-distribution');
 
   // Create rep form
   const [repEmail, setRepEmail] = useState('');
-  const [repPassword, setRepPassword] = useState('');
+  const [inviteLink, setInviteLink] = useState<{ email: string; link: string; emailed: boolean } | null>(null);
   const [repManagerId, setRepManagerId] = useState('');
 
   const supabase = createClient();
@@ -55,6 +54,7 @@ export default function AdminPage() {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
+    setInviteLink(null);
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
@@ -62,26 +62,28 @@ export default function AdminPage() {
         body: JSON.stringify({
           action: 'create-manager',
           email: mgrEmail,
-          password: mgrPassword,
           teamName: mgrTeamName,
           teamCategory: mgrCategory,
         }),
       });
       const d = await res.json();
       if (!res.ok) { setMessage({ type: 'error', text: d.error }); return; }
-      setMessage({ type: 'success', text: `Manager created: ${mgrEmail}` });
-      setMgrEmail(''); setMgrPassword(''); setMgrTeamName('');
+      setMessage({ type: 'success', text: d.emailed ? `Manager invited: ${mgrEmail}. A set-password link was emailed.` : `Manager created: ${mgrEmail}. Email is not configured, so send them the link below.` });
+      if (d.inviteLink) setInviteLink({ email: mgrEmail, link: d.inviteLink, emailed: !!d.emailed });
+      setMgrEmail(''); setMgrTeamName('');
       refresh();
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleCreateRep(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
+    setInviteLink(null);
     try {
       const res = await fetch('/api/admin', {
         method: 'POST',
@@ -89,19 +91,20 @@ export default function AdminPage() {
         body: JSON.stringify({
           action: 'create-rep',
           email: repEmail,
-          password: repPassword,
           managerId: repManagerId,
         }),
       });
       const d = await res.json();
       if (!res.ok) { setMessage({ type: 'error', text: d.error }); return; }
-      setMessage({ type: 'success', text: `Rep created: ${repEmail}` });
-      setRepEmail(''); setRepPassword(''); setRepManagerId('');
+      setMessage({ type: 'success', text: d.emailed ? `Rep invited: ${repEmail}. A set-password link was emailed.` : `Rep created: ${repEmail}. Email is not configured, so send them the link below.` });
+      if (d.inviteLink) setInviteLink({ email: repEmail, link: d.inviteLink, emailed: !!d.emailed });
+      setRepEmail(''); setRepManagerId('');
       refresh();
     } catch (e: any) {
       setMessage({ type: 'error', text: e.message });
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleUpdateRole(profile: Profile, newRole: string) {
@@ -176,6 +179,18 @@ export default function AdminPage() {
           {message && (
             <div style={{ background: message.type === 'success' ? '#d1fae5' : '#fee2e2', border: `1px solid ${message.type === 'success' ? '#065f46' : '#991b1b'}`, borderRadius: 10, padding: '12px 16px', color: message.type === 'success' ? '#065f46' : '#991b1b', fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
               {message.text}
+            </div>
+          )}
+
+          {inviteLink && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', fontSize: 13, marginBottom: 20 }}>
+              <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Set-password link for {inviteLink.email}{inviteLink.emailed ? ' (also emailed)' : ''}. It works once, so share it only with them.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input readOnly value={inviteLink.link} onFocus={e => e.currentTarget.select()} style={{ flex: 1, padding: '8px 10px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12, fontFamily: 'monospace' }} />
+                <button type="button" onClick={() => navigator.clipboard?.writeText(inviteLink.link)} style={{ padding: '8px 12px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Copy</button>
+              </div>
             </div>
           )}
 
@@ -259,16 +274,13 @@ export default function AdminPage() {
           {tab === 'create-manager' && (
             <form onSubmit={handleCreateManager} style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 520, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Create New Manager</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>No password needed. They get a one-time link to set their own.</div>
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Email</label>
                 <input type="email" value={mgrEmail} onChange={e => setMgrEmail(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="manager@company.com" />
               </div>
 
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Password</label>
-                <input type="text" value={mgrPassword} onChange={e => setMgrPassword(e.target.value)} required minLength={8} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="Min 8 characters" />
-              </div>
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Team Name</label>
@@ -283,7 +295,7 @@ export default function AdminPage() {
               </div>
 
               <button type="submit" disabled={saving} style={{ padding: '12px 20px', background: '#D4860A', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Creating...' : 'Create Manager & Team'}
+                {saving ? 'Creating...' : 'Invite Manager & Create Team'}
               </button>
             </form>
           )}
@@ -292,16 +304,13 @@ export default function AdminPage() {
           {tab === 'create-rep' && (
             <form onSubmit={handleCreateRep} style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 520, boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#374151' }}>Create New Rep</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>No password needed. They get a one-time link to set their own.</div>
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Email</label>
                 <input type="email" value={repEmail} onChange={e => setRepEmail(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="rep@company.com" />
               </div>
 
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Password</label>
-                <input type="text" value={repPassword} onChange={e => setRepPassword(e.target.value)} required minLength={8} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="Min 8 characters" />
-              </div>
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Assign to Manager</label>
@@ -314,7 +323,7 @@ export default function AdminPage() {
               </div>
 
               <button type="submit" disabled={saving} style={{ padding: '12px 20px', background: '#D4860A', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
-                {saving ? 'Creating...' : 'Create Rep'}
+                {saving ? 'Creating...' : 'Invite Rep'}
               </button>
             </form>
           )}
