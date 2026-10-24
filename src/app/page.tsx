@@ -5,6 +5,7 @@ import { PERSONAS, Persona } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
 import SiteHeader from '@/components/site/SiteHeader';
 import SiteFooter from '@/components/site/SiteFooter';
+import { SAMPLE_INCENTIVES, getSampleIncentive, normalizeIncentiveGoal, INCENTIVE_OUTCOME_LABEL, INCENTIVE_TYPE_LABEL } from '@/lib/incentives';
 const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -55,6 +56,7 @@ type Analysis = {
   opportunities?: string[];
   coachingTips?: string[];
   recommendedDrill?: string;
+  incentiveGoal?: unknown;
 };
 
 const SKILLS: { key: keyof Analysis; label: string }[] = [
@@ -64,6 +66,9 @@ const SKILLS: { key: keyof Analysis; label: string }[] = [
   { key: 'confidencePacing', label: 'Confidence & Pacing' },
   { key: 'closingTechnique', label: 'Closing Technique' },
 ];
+
+// Event-handler clock; kept outside the component so the React compiler lint does not treat it as render-time.
+function nowMs() { return Date.now(); }
 
 const clamp = (n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
@@ -81,6 +86,9 @@ export default function Home() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState('');
   const [startedAt, setStartedAt] = useState(0);
+  // Optional sample incentive the demo rep pitches toward (fictional programs).
+  const [incentiveId, setIncentiveId] = useState('');
+  const incentive = getSampleIncentive(incentiveId);
 
   const conversationRef = useRef<Message[]>([]);
   const speakingRef = useRef(false);
@@ -106,7 +114,7 @@ export default function Home() {
     setMessages(prev => [...prev, { role: 'user', content: userText }]);
     try {
       // Public demo: the server sets the persona prompt from personaId, so only the turns are sent.
-      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, messages: conversationMessages.filter(m => m.role !== 'system') }) });
+      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, ...(incentive ? { incentiveId: incentive.id } : {}), messages: conversationMessages.filter(m => m.role !== 'system') }) });
       if (!response.ok) { const err = await response.json().catch(() => null); throw new Error(err?.error || 'Something went wrong'); }
       const data = await response.json();
       const reply = data.choices?.[0]?.message?.content || "Sorry, I didn't catch that.";
@@ -124,7 +132,7 @@ export default function Home() {
 
   const startConversation = useCallback(async () => {
     setStarted(true); setMessages([]); setGroqError(''); setAnalysis(null); setAnalyzeError(''); setTyped('');
-    setStartedAt(Date.now());
+    setStartedAt(nowMs());
     conversationRef.current = [{ role: 'assistant', content: selectedPersona.openingLine }];
     speak(selectedPersona.openingLine, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
     speakingRef.current = true; setStatus(window.speechSynthesis ? 'speaking' : 'idle');
@@ -184,8 +192,9 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           personaId: selectedPersona.id,
+          ...(incentive ? { incentiveId: incentive.id } : {}),
           transcript: conversationRef.current.filter(m => m.role !== 'system'),
-          durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+          durationSeconds: Math.round((nowMs() - startedAt) / 1000),
         }),
       });
       const data = await res.json().catch(() => null);
@@ -433,6 +442,37 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Optional sample incentive */}
+        <div className="demo-incentives" style={{ marginTop: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--amber)' }}>Pitch toward an incentive (optional)</span>
+            <span className="sample-badge" style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 999, background: '#FDF3DC', color: '#92400e', border: '1px dashed rgba(212,134,10,0.6)' }}>Sample programs</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => setIncentiveId('')} aria-pressed={!incentive} className={`cat-btn ${!incentive ? 'active' : ''}`}>None</button>
+            {SAMPLE_INCENTIVES.map(i => (
+              <button
+                key={i.id}
+                type="button"
+                aria-pressed={incentiveId === i.id}
+                className={`cat-btn ${incentiveId === i.id ? 'active' : ''}`}
+                onClick={() => {
+                  setIncentiveId(i.id);
+                  const p = ALL_PERSONAS.find(x => x.id === i.personaId);
+                  if (p) { setSelectedPersona(p); setCategoryFilter('all'); }
+                }}
+              >
+                {i.emoji} {i.name}
+              </button>
+            ))}
+          </div>
+          {incentive && (
+            <p style={{ fontSize: 13, color: 'rgba(245,237,216,0.7)', marginTop: 12, lineHeight: 1.6, maxWidth: 680 }}>
+              <strong style={{ color: 'var(--cream)' }}>{INCENTIVE_TYPE_LABEL[incentive.type]} · {incentive.period}.</strong> Your ask: {incentive.ask}. Target {incentive.target.toLowerCase()}; payout {incentive.payout.toLowerCase()}. <em style={{ color: 'rgba(245,237,216,0.45)' }}>Fictional sample program.</em>
+            </p>
+          )}
+        </div>
+
         <button
           onClick={startConversation}
           className="btn-primary"
@@ -451,6 +491,11 @@ export default function Home() {
                 <div className="conv-title">{selectedPersona.emoji} {selectedPersona.name}</div>
                 <button onClick={resetConversation} className="reset-btn" style={{ margin: 0 }}>← New scenario</button>
               </div>
+              {incentive && (
+                <div style={{ padding: '10px 16px', fontSize: 12, color: 'rgba(245,237,216,0.75)', borderBottom: '1px solid rgba(212,134,10,0.15)', background: 'rgba(212,134,10,0.08)' }}>
+                  🎯 <strong style={{ color: 'var(--amber)' }}>Goal (sample program):</strong> {incentive.ask}
+                </div>
+              )}
               <div className="conv-body">
                 {messages.map((m, i) => (
                   <div key={i} className={`conv-msg ${m.role === 'user' ? 'clearfix' : ''}`}>
@@ -527,6 +572,18 @@ export default function Home() {
                 {!!analysis.strengths?.length && (<><h4>What worked</h4><ul>{analysis.strengths.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
                 {!!analysis.opportunities?.length && (<><h4>What to fix</h4><ul>{analysis.opportunities.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
                 {!!analysis.coachingTips?.length && (<><h4>Coaching tips</h4><ul>{analysis.coachingTips.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
+                {(() => {
+                  const goal = incentive ? normalizeIncentiveGoal(analysis.incentiveGoal) : null;
+                  if (!incentive || !goal) return null;
+                  const good = goal.outcome === 'committed' || goal.outcome === 'trial' || goal.outcome === 'next-step';
+                  return (
+                    <div className="incentive-goal" style={{ marginTop: 18, padding: '14px 16px', borderRadius: 10, border: `1px solid ${good ? 'rgba(74,222,128,0.4)' : 'rgba(212,134,10,0.4)'}`, background: 'rgba(212,134,10,0.06)' }}>
+                      <div style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 6 }}>Incentive goal · {incentive.name} <span style={{ color: 'rgba(245,237,216,0.4)' }}>(sample)</span></div>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: good ? '#4ade80' : '#fbbf24' }}>{good ? '✅' : goal.outcome === 'declined' ? '🟡' : '❌'} {INCENTIVE_OUTCOME_LABEL[goal.outcome]} · {goal.score}/100</div>
+                      {goal.evidence && <div style={{ fontSize: 12, color: 'rgba(245,237,216,0.6)', marginTop: 6, fontStyle: 'italic' }}>&ldquo;{goal.evidence}&rdquo;</div>}
+                    </div>
+                  );
+                })()}
                 {analysis.recommendedDrill && (<div className="fb-quote"><strong style={{ color: 'var(--amber)' }}>Next drill: </strong>{analysis.recommendedDrill}</div>)}
                 <div className="debrief-cta">
                   <p>Demo scores aren&apos;t saved. With a plan, every call is scored and saved so you can track progress over time, and managers can see the whole team.</p>

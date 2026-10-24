@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany, ChatMessage } from '@/lib/server/ai-guard';
 import { groqChat } from '@/lib/server/groq-chat';
+import { getSampleIncentive, incentiveBuyerPrompt } from '@/lib/incentives';
 
 const MINUTE = 60_000;
 
@@ -34,8 +35,12 @@ export async function POST(req: NextRequest) {
       if (!rl.ok) return tooMany(rl.retryAfterSeconds, false);
       const persona = publicPersona(body.personaId);
       if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+      // Optional sample incentive: the buyer prompt add-on comes from server-side data only.
+      const incentive = body.incentiveId ? getSampleIncentive(body.incentiveId) : null;
+      if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
       const turns = cleanMessages(body.messages, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
-      messages = turns ? [{ role: 'system', content: persona.systemPrompt }, ...turns] : null;
+      const system = persona.systemPrompt + (incentive ? incentiveBuyerPrompt(incentive) : '');
+      messages = turns ? [{ role: 'system', content: system }, ...turns] : null;
       maxTokens = 300;
     }
 
