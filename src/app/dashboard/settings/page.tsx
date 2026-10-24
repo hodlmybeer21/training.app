@@ -14,6 +14,7 @@ interface Profile {
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [teamName, setTeamName] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -40,6 +41,7 @@ export default function SettingsPage() {
       .then(d => {
         if (d.profile) {
           setProfile(d.profile);
+          setTeamName(d.teamName ?? null);
           setDisplayName(d.profile.display_name || '');
           setAvatarText(d.profile.avatar_initial || '');
         }
@@ -222,7 +224,7 @@ export default function SettingsPage() {
                 <div style={{ height: 1, background: '#f3f4f6' }} />
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#9ca3af', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Team</label>
-                  <div style={{ fontSize: 15, color: '#111827', fontWeight: 600 }}>Bellavance Beverage Co.</div>
+                  <div style={{ fontSize: 15, color: '#111827', fontWeight: 600 }}>{teamName || 'Not assigned'}</div>
                 </div>
                 <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Team management is handled by your administrator. Contact them to update team settings.</p>
               </div>

@@ -272,7 +272,7 @@ export default function AdminPage() {
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>Team Name</label>
-                <input type="text" value={mgrTeamName} onChange={e => setMgrTeamName(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="e.g. Bellavance Beverage Co." />
+                <input type="text" value={mgrTeamName} onChange={e => setMgrTeamName(e.target.value)} required style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} placeholder="e.g. Granite Ridge Beverage" />
               </div>
 
               <div>

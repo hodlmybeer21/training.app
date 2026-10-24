@@ -3,6 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { PERSONAS, Persona } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
+import SiteHeader from '@/components/site/SiteHeader';
+import SiteFooter from '@/components/site/SiteFooter';
 const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -29,7 +31,7 @@ const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'grocery', label: '🛒 Grocery & Retail' },
   { id: 'cstore', label: '⛽ C-Stores' },
-  { id: 'liquor', label: '🏪 Liquor Stores' },
+  { id: 'liquor', label: '🏪 Beer & Wine Shops' },
   { id: 'onprem', label: '🍺 Bars & Restaurants' },
   { id: 'internal', label: '📊 Internal & Management' },
   { id: 'craft', label: '🏠 Craft & Specialty' },
@@ -38,9 +40,32 @@ const CATEGORIES = [
 
 const TICKER_ITEMS = [
   'New Account Pitch', 'Hostile Prospect', 'Annual Review Prep',
-  'Craft Brewery Taproom', 'NH Liquor Store Owner', 'Win-Back Campaign',
+  'Craft Brewery Taproom', 'Beer & Wine Shop Owner', 'Win-Back Campaign',
   'Contract Renewal', 'Route Sales Rep',
 ];
+
+type Analysis = {
+  overallScore: number;
+  discovery: number;
+  objectionHandling: number;
+  valueArticulation: number;
+  confidencePacing: number;
+  closingTechnique: number;
+  strengths?: string[];
+  opportunities?: string[];
+  coachingTips?: string[];
+  recommendedDrill?: string;
+};
+
+const SKILLS: { key: keyof Analysis; label: string }[] = [
+  { key: 'discovery', label: 'Discovery' },
+  { key: 'objectionHandling', label: 'Objection Handling' },
+  { key: 'valueArticulation', label: 'Value Articulation' },
+  { key: 'confidencePacing', label: 'Confidence & Pacing' },
+  { key: 'closingTechnique', label: 'Closing Technique' },
+];
+
+const clamp = (n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
 export default function Home() {
   const [selectedPersona, setSelectedPersona] = useState<Persona>(ALL_PERSONAS[0]);
@@ -50,49 +75,69 @@ export default function Home() {
   const [started, setStarted] = useState(false);
   const [groqError, setGroqError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [typed, setTyped] = useState('');
+  const [voiceSupported, setVoiceSupported] = useState(true);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState('');
+  const [startedAt, setStartedAt] = useState(0);
 
   const conversationRef = useRef<Message[]>([]);
-  const synthRef = useRef<SpeechSynthesis | null>(null);
   const speakingRef = useRef(false);
   const recognitionRef = useRef<SR | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const convRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    setVoiceSupported('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  }, []);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [messages]);
+
+  const userTurns = messages.filter(m => m.role === 'user').length;
+  // The public API accepts up to 24 messages per demo call (opening line + 11 exchanges).
+  const DEMO_MAX_TURNS = 11;
+  const atTurnLimit = userTurns >= DEMO_MAX_TURNS;
 
   const sendToGroq = async (userText: string) => {
+    if (conversationRef.current.filter(m => m.role === 'user').length >= DEMO_MAX_TURNS) return;
     setStatus('thinking');
     setGroqError('');
     const conversationMessages = [...conversationRef.current, { role: 'user' as const, content: userText }];
+    setMessages(prev => [...prev, { role: 'user', content: userText }]);
     try {
       // Public demo: the server sets the persona prompt from personaId, so only the turns are sent.
       const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, messages: conversationMessages.filter(m => m.role !== 'system') }) });
       if (!response.ok) { const err = await response.json().catch(() => null); throw new Error(err?.error || 'Something went wrong'); }
       const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content || "I'm sorry, I didn't catch that.";
+      const reply = data.choices?.[0]?.message?.content || "Sorry, I didn't catch that.";
       conversationRef.current = [...conversationMessages, { role: 'assistant', content: reply }];
-      setMessages(prev => [...prev, { role: 'user', content: userText }, { role: 'assistant', content: reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       speak(reply, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
       speakingRef.current = true; setStatus('speaking');
+      if (!window.speechSynthesis) setStatus('idle');
     } catch (e: unknown) {
+      // Keep the user's line in the history so they can retry or end the call.
+      conversationRef.current = conversationMessages;
       setGroqError(e instanceof Error ? e.message : 'Something went wrong'); setStatus('idle');
     }
   };
 
   const startConversation = useCallback(async () => {
-    setStarted(true); setMessages([]); setGroqError('');
-    conversationRef.current = [{ role: 'system', content: selectedPersona.systemPrompt }];
+    setStarted(true); setMessages([]); setGroqError(''); setAnalysis(null); setAnalyzeError(''); setTyped('');
+    setStartedAt(Date.now());
+    conversationRef.current = [{ role: 'assistant', content: selectedPersona.openingLine }];
     speak(selectedPersona.openingLine, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
-    speakingRef.current = true; setStatus('speaking');
+    speakingRef.current = true; setStatus(window.speechSynthesis ? 'speaking' : 'idle');
     setMessages([{ role: 'assistant', content: selectedPersona.openingLine }]);
-    conversationRef.current.push({ role: 'assistant', content: selectedPersona.openingLine });
+    setTimeout(() => convRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }, [selectedPersona]);
 
   const startListening = () => {
-    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) { alert('Speech recognition not supported. Use Chrome or Edge.'); return; }
-    if (synthRef.current) synthRef.current.cancel();
+    if (!voiceSupported || atTurnLimit) return;
+    window.speechSynthesis?.cancel();
     speakingRef.current = false;
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SR();
+    const SRClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SRClass();
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
@@ -113,7 +158,7 @@ export default function Home() {
   };
 
   const stopSpeaking = () => {
-    synthRef.current?.cancel(); speakingRef.current = false; recognitionRef.current?.abort(); setStatus('idle');
+    window.speechSynthesis?.cancel(); speakingRef.current = false; recognitionRef.current?.abort(); setStatus('idle');
   };
 
   const handleMicClick = () => {
@@ -121,7 +166,42 @@ export default function Home() {
     else startListening();
   };
 
-  const resetConversation = () => { stopSpeaking(); setStarted(false); setMessages([]); conversationRef.current = []; };
+  const sendTyped = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = typed.trim();
+    if (!text || status === 'thinking' || atTurnLimit) return;
+    window.speechSynthesis?.cancel();
+    setTyped('');
+    sendToGroq(text);
+  };
+
+  const endAndScore = async () => {
+    stopSpeaking();
+    setAnalyzing(true); setAnalyzeError('');
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personaId: selectedPersona.id,
+          transcript: conversationRef.current.filter(m => m.role !== 'system'),
+          durationSeconds: Math.round((Date.now() - startedAt) / 1000),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.analysis) throw new Error(data?.error || 'Could not score this call. Try again.');
+      setAnalysis(data.analysis);
+    } catch (e: unknown) {
+      setAnalyzeError(e instanceof Error ? e.message : 'Could not score this call. Try again.');
+    }
+    setAnalyzing(false);
+    setTimeout(() => convRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  const resetConversation = () => {
+    stopSpeaking(); setStarted(false); setMessages([]); setAnalysis(null); setAnalyzeError(''); conversationRef.current = [];
+    document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const statusColor: Record<Status, string> = { idle: 'rgba(245,237,216,0.3)', listening: '#ef4444', thinking: '#D4860A', speaking: '#9DC44B' };
 
@@ -139,26 +219,28 @@ export default function Home() {
 
   return (
     <div>
+      <SiteHeader />
+
       {/* ── HERO ── */}
       <section className="hero">
         <div className="hero-bg-lines" />
         <div className="hero-left">
           <div className="eyebrow">
             <div className="eyebrow-dot" />
-            For Beer Distribution Teams
+            For beer distribution sales reps
           </div>
           <h1 className="font-display" style={{ fontSize: 'clamp(72px, 8vw, 108px)', lineHeight: 0.92, letterSpacing: '0.01em', color: 'var(--cream)', marginBottom: 12 }}>
             Train<span style={{ color: 'var(--amber)', display: 'block' }}>Before<br />You Pitch.</span>
           </h1>
-          <p className="tagline" style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.6, color: 'rgba(245,237,216,0.65)', maxWidth: 400, margin: '22px 0 40px' }}>
-            The AI flight simulator for your sales team. Practice every conversation before it happens — from angry retailers to annual reviews.
+          <p className="tagline" style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.6, color: 'rgba(245,237,216,0.7)', maxWidth: 440, margin: '22px 0 40px' }}>
+            Rehearse the tough buyer conversation out loud with an AI buyer who pushes back, then get a scored debrief on what to fix before the real call.
           </p>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <a href="#start" className="btn-primary">Start for free</a>
-            <a href="#how" className="btn-ghost">See how it works</a>
+            <a href="#demo" className="btn-primary">Try the free demo</a>
+            <a href="/pricing" className="btn-ghost">See plans</a>
           </div>
           <div className="hero-stats">
-            {[['13+', 'Scenario types'], ['100%', 'Voice-powered'], ['$0', 'Free to start']].map(([v, l]) => (
+            {[[String(ALL_PERSONAS.length), 'Buyer scenarios'], ['5', 'Skills scored'], ['$0', 'Demo, no signup']].map(([v, l]) => (
               <div key={l}>
                 <div className="stat-num">{v}</div>
                 <div className="stat-label">{l}</div>
@@ -166,7 +248,6 @@ export default function Home() {
             ))}
           </div>
         </div>
-
         {/* Phone mockup */}
         <div className="hero-right">
           <div className="phone-wrap">
@@ -225,9 +306,9 @@ export default function Home() {
         <h2 className="section-title">Three steps to <em>better</em><br />conversations</h2>
         <div className="steps-grid">
           {[
-            { num: '01', icon: '📋', title: 'Pick your scenario', desc: 'Choose from distributor-specific conversations — new accounts, chain buyers, management reviews, competitive situations.' },
-            { num: '02', icon: '🎤', title: 'Talk it out', desc: 'Use your mic. The AI talks back in real time — with interruptions, pushback, and realistic objections.' },
-            { num: '03', icon: '⚡', title: 'Get instant feedback', desc: 'Every session sharpens your instincts. No judgment. No embarrassment. Just practice that actually sticks.' },
+            { num: '01', icon: '📋', title: 'Pick a buyer', desc: 'Grocery chain buyers, c-store managers, bar owners, beer directors, win-back accounts and your own district manager.' },
+            { num: '02', icon: '🎤', title: 'Talk it out', desc: 'Speak into your mic (or type). The AI buyer answers in character with real pushback on price, space and support.' },
+            { num: '03', icon: '⚡', title: 'Get scored', desc: 'End the call for a 0–100 score across discovery, objections, value, pacing and closing, plus specific tips and a next drill.' },
           ].map(({ num, icon, title, desc }) => (
             <div key={num} className="step">
               <div className="step-num">{num}</div>
@@ -242,13 +323,13 @@ export default function Home() {
       {/* ── PERSONAS ── */}
       <section className="personas-section">
         <div className="section-label">Who you&apos;ll practice with</div>
-        <h2 className="section-title">Real personas.<br /><em>Real pushback.</em></h2>
+        <h2 className="section-title">Real situations.<br /><em>Real pushback.</em></h2>
         <div className="personas-grid">
           {[
-            { emoji: '😤', name: 'The Difficult Customer', desc: 'Aggressive price pushback, complaints, and zero patience.', tag: 'Off-Premise' },
-            { emoji: '🛒', name: 'Grocery Chain Buyer', desc: 'Controls shelf space at Market Basket, Shaw&apos;s, Hannaford.', tag: 'Retail' },
-            { emoji: '🔥', name: 'Hostile Prospect', desc: 'Wants everything, gives nothing. Extreme resilience test.', tag: 'Win-Back' },
-            { emoji: '📊', name: 'District Sales Manager', desc: 'Pushing volume, tracking Nielsen numbers, managing SG&A.', tag: 'Internal' },
+            { emoji: '🛒', name: 'Grocery Chain Buyer', desc: "Twelve feet of cold space and a hundred distributors pitching. Controls slotting and promo calendars.", tag: 'Off-Premise' },
+            { emoji: '⛽', name: 'C-Store Account Manager', desc: 'Four cooler doors, a tight delivery window, and zero patience for slow movers.', tag: 'C-Store' },
+            { emoji: '🎯', name: 'Win-Back: Lost Account', desc: 'Dropped your brand three months ago and has a competing offer on the table.', tag: 'Win-Back' },
+            { emoji: '📊', name: 'District Sales Manager', desc: 'Ride-along debrief on volume, premium mix and fill-rate complaints.', tag: 'Internal' },
           ].map(({ emoji, name, desc, tag }) => (
             <div key={name} className="persona-card">
               <div className="persona-emoji">{emoji}</div>
@@ -266,13 +347,13 @@ export default function Home() {
           <div className="section-label">Why it works</div>
           <h2 className="section-title">Words spoken <em>matter</em><br />more than typed</h2>
           <p style={{ fontSize: 16, fontWeight: 300, lineHeight: 1.75, color: 'rgba(245,237,216,0.55)', maxWidth: 440, marginBottom: 36 }}>
-            Your reps don&apos;t send emails in the field. They talk. TrainField trains the muscle that actually matters — your voice, your instincts, your timing.
+            Reps don&apos;t send emails in the field. They talk. TrainField trains the part that matters in a buyer meeting: what you say, how you handle the objection, and whether you ask for the order.
           </p>
           <ul className="why-features">
             {[
-              { icon: '🎤', strong: 'Voice-first practice', text: 'Talk out loud — just like you would with a real account.' },
-              { icon: '🤖', strong: 'AI that pushes back', text: 'Not a script. These personas interrupt, challenge, and object.' },
-              { icon: '🔒', strong: 'Your data stays local', text: 'Voice stays in-browser. Only text goes to the AI.' },
+              { icon: '🎤', strong: 'Voice-first practice', text: 'Talk out loud, like you would with a real account. Typing works too.' },
+              { icon: '🤖', strong: 'AI that pushes back', text: 'Not a script. Buyers object, stall and ask what you will do for them.' },
+              { icon: '🔒', strong: 'Clear about your data', text: 'The demo saves nothing. Your browser turns speech into text (Chrome uses Google for this), and the text goes to our AI provider to reply and score. See Privacy.' },
             ].map(({ icon, strong, text }) => (
               <li key={strong}>
                 <div className="feature-icon">{icon}</div>
@@ -287,7 +368,7 @@ export default function Home() {
         <div className="why-right">
           <div className="feedback-card">
             <div className="feedback-header">
-              <div className="fb-title">Session Debrief</div>
+              <div className="fb-title">Sample debrief</div>
               <div className="fb-score">84 / 100</div>
             </div>
             <div className="feedback-body">
@@ -303,21 +384,22 @@ export default function Home() {
                 </div>
               ))}
               <div className="fb-quote">
-                Strong on data — you quoted margin numbers confidently. Work on closing earlier; you circled price twice without asking for the order.
+                Strong on data. You quoted margin numbers confidently. Work on closing earlier; you circled price twice without asking for the order.
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── APP SECTION ── */}
-      <section id="start" className="app-section">
-        <div className="section-label">Try it now</div>
+      {/* ── DEMO ── */}
+      <section id="demo" className="app-section">
+        <span id="start" />
+        <div className="section-label">Free demo · no account</div>
         <h2 className="section-title" style={{ fontSize: 'clamp(40px, 4vw, 64px)', marginBottom: 16 }}>
-          Pick a scenario.<br />Press mic. Start talking.
+          Pick a buyer.<br />Talk. Get your score.
         </h2>
-        <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(245,237,216,0.5)', marginBottom: 40, maxWidth: 500 }}>
-          No account needed. No budget approval. Get your team practicing in minutes.
+        <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(245,237,216,0.55)', marginBottom: 40, maxWidth: 560, lineHeight: 1.6 }}>
+          Choose a scenario, make your pitch with your mic or keyboard, then end the call for a scored debrief. Demo calls aren&apos;t saved.
         </p>
 
         {/* Category filter */}
@@ -340,13 +422,13 @@ export default function Home() {
               key={p.id}
               onClick={() => setSelectedPersona(p)}
               className={`persona-card ${selectedPersona.id === p.id ? 'selected' : ''}`}
-              style={selectedPersona.id === p.id ? { borderColor: 'var(--amber)', background: 'var(--dark2)' } : {}}
+              style={selectedPersona.id === p.id ? { borderColor: 'var(--amber)', background: 'var(--dark2)', textAlign: 'left' } : { textAlign: 'left' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                 <span style={{ fontSize: 24 }}>{p.emoji}</span>
                 <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--cream)' }}>{p.name}</span>
               </div>
-              <p style={{ fontSize: 11, color: 'rgba(245,237,216,0.4)', lineHeight: 1.5 }}>{p.description}</p>
+              <p style={{ fontSize: 11, color: 'rgba(245,237,216,0.45)', lineHeight: 1.5 }}>{p.description}</p>
             </button>
           ))}
         </div>
@@ -356,54 +438,107 @@ export default function Home() {
           className="btn-primary"
           style={{ display: 'block', marginTop: 32, fontSize: 15, padding: '16px 40px' }}
         >
-          Start Roleplay — {selectedPersona.emoji} {selectedPersona.name}
+          Start roleplay: {selectedPersona.emoji} {selectedPersona.name}
         </button>
       </section>
 
-      {/* ── LIVE CONVERSATION ── */}
+      {/* ── LIVE CONVERSATION / DEBRIEF ── */}
       {started && (
-        <div className="conv-wrap" style={{ padding: '0 70px 100px', background: 'var(--dark2)' }}>
-          <div className="conv-card" style={{ maxWidth: 480, margin: '0 auto' }}>
-            <div className="conv-header">
-              <div className="conv-title">{selectedPersona.emoji} {selectedPersona.name}</div>
-              <button onClick={resetConversation} className="reset-btn">← New scenario</button>
-            </div>
-            <div className="conv-body">
-              {messages.length === 0 && (
-                <div className="conv-thinking"><span /><span /><span />Connecting...</div>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} className={`conv-msg ${m.role === 'user' ? 'clearfix' : ''}`}>
-                  <div className="conv-meta" style={m.role === 'user' ? { textAlign: 'right' } : {}}>{m.role === 'user' ? 'You' : selectedPersona.name}</div>
-                  <div className={`conv-bubble ${m.role === 'user' ? 'conv-user' : 'conv-ai'}`}>{m.content}</div>
-                </div>
-              ))}
-              {interimTranscript && (
-                <div className="conv-msg clearfix" style={{ textAlign: 'right' }}>
-                  <div className="conv-meta">You</div>
-                  <div className="conv-bubble interim">{interimTranscript}|</div>
-                </div>
-              )}
-              {status === 'thinking' && (
-                <div className="conv-thinking"><span /><span /><span />Thinking...</div>
-              )}
-              {groqError && <div className="conv-error">⚠ {groqError}</div>}
-              <div ref={messagesEndRef} />
-            </div>
-            <div className="conv-footer">
-              <div className="conv-status">
-                <div className="conv-dot" style={{ background: statusColor[status] }} />
-                {status === 'idle' ? 'Tap mic to speak' : status === 'listening' ? 'Listening...' : status === 'thinking' ? 'Thinking...' : 'Speaking...'}
+        <div ref={convRef} className="conv-wrap" style={{ padding: '0 70px 100px', background: 'var(--dark2)', maxWidth: 'none', scrollMarginTop: 80 }}>
+          {!analysis ? (
+            <div className="conv-card" style={{ maxWidth: 520, margin: '0 auto' }}>
+              <div className="conv-header">
+                <div className="conv-title">{selectedPersona.emoji} {selectedPersona.name}</div>
+                <button onClick={resetConversation} className="reset-btn" style={{ margin: 0 }}>← New scenario</button>
               </div>
-              <button
-                onClick={handleMicClick}
-                className={`mic-large ${status === 'listening' ? 'listening' : status === 'speaking' ? 'speaking' : 'idle'}`}
-              >
-                {status === 'listening' ? '🔴' : status === 'speaking' ? '🔊' : '🎤'}
-              </button>
-              <p className="mic-hint">{status === 'idle' ? 'Press mic, then speak out loud' : 'Press again to stop'}</p>
+              <div className="conv-body">
+                {messages.map((m, i) => (
+                  <div key={i} className={`conv-msg ${m.role === 'user' ? 'clearfix' : ''}`}>
+                    <div className="conv-meta" style={m.role === 'user' ? { textAlign: 'right' } : {}}>{m.role === 'user' ? 'You' : selectedPersona.name}</div>
+                    <div className={`conv-bubble ${m.role === 'user' ? 'conv-user' : 'conv-ai'}`}>{m.content}</div>
+                  </div>
+                ))}
+                {interimTranscript && (
+                  <div className="conv-msg clearfix" style={{ textAlign: 'right' }}>
+                    <div className="conv-meta">You</div>
+                    <div className="conv-bubble interim">{interimTranscript}|</div>
+                  </div>
+                )}
+                {status === 'thinking' && (
+                  <div className="conv-thinking"><span /><span /><span />Thinking...</div>
+                )}
+                {groqError && <div className="conv-error">⚠ {groqError}</div>}
+                {atTurnLimit && status !== 'thinking' && <div className="conv-error" style={{ color: 'var(--amber-light)' }}>That&apos;s the end of the demo call. End it below to get your score.</div>}
+                <div ref={messagesEndRef} />
+              </div>
+              <div className="conv-footer">
+                {voiceSupported ? (
+                  <>
+                    <div className="conv-status">
+                      <div className="conv-dot" style={{ background: statusColor[status] }} />
+                      {status === 'idle' ? 'Tap the mic to speak' : status === 'listening' ? 'Listening...' : status === 'thinking' ? 'Thinking...' : 'Speaking...'}
+                    </div>
+                    <button
+                      onClick={handleMicClick}
+                      aria-label={status === 'listening' || status === 'speaking' ? 'Stop' : 'Start speaking'}
+                      className={`mic-large ${status === 'listening' ? 'listening' : status === 'speaking' ? 'speaking' : 'idle'}`}
+                    >
+                      {status === 'listening' ? '🔴' : status === 'speaking' ? '🔊' : '🎤'}
+                    </button>
+                    <p className="mic-hint">{status === 'idle' ? 'Press the mic, then speak out loud' : 'Press again to stop'}</p>
+                  </>
+                ) : (
+                  <p className="mic-hint" style={{ marginTop: 0 }}>Voice input needs Chrome or Edge. You can type your replies below.</p>
+                )}
+                <div className="conv-actions">
+                  <form className="type-row" onSubmit={sendTyped}>
+                    <input
+                      value={typed}
+                      onChange={e => setTyped(e.target.value)}
+                      placeholder={voiceSupported ? 'Or type your reply…' : 'Type your reply…'}
+                      maxLength={1000}
+                      aria-label="Type your reply"
+                    />
+                    <button type="submit" className="btn-primary" disabled={!typed.trim() || status === 'thinking' || atTurnLimit}>Send</button>
+                  </form>
+                  <button className="btn-end" onClick={endAndScore} disabled={userTurns === 0 || analyzing || status === 'thinking'}>
+                    {analyzing ? 'Scoring your call…' : userTurns === 0 ? 'Make your pitch to unlock your score' : 'End call & get my score'}
+                  </button>
+                  {analyzeError && <div className="conv-error">⚠ {analyzeError}</div>}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="feedback-card debrief">
+              <div className="feedback-header">
+                <div className="fb-title">Your debrief · {selectedPersona.name}</div>
+                <button onClick={resetConversation} className="reset-btn" style={{ margin: 0 }}>Try another →</button>
+              </div>
+              <div className="feedback-body">
+                <div className="debrief-score"><b>{clamp(analysis.overallScore)}</b><span>/ 100 overall</span></div>
+                <div style={{ marginTop: 18 }}>
+                  {SKILLS.map(({ key, label }) => (
+                    <div key={key} className="meter-row">
+                      <div className="meter-label"><span>{label}</span><span>{clamp(analysis[key])}</span></div>
+                      <div className="meter-track"><div className="meter-fill" style={{ width: `${clamp(analysis[key])}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+                {!!analysis.strengths?.length && (<><h4>What worked</h4><ul>{analysis.strengths.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
+                {!!analysis.opportunities?.length && (<><h4>What to fix</h4><ul>{analysis.opportunities.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
+                {!!analysis.coachingTips?.length && (<><h4>Coaching tips</h4><ul>{analysis.coachingTips.slice(0, 3).map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
+                {analysis.recommendedDrill && (<div className="fb-quote"><strong style={{ color: 'var(--amber)' }}>Next drill: </strong>{analysis.recommendedDrill}</div>)}
+                <div className="debrief-cta">
+                  <p>Demo scores aren&apos;t saved. With a plan, every call is scored and saved so you can track progress over time, and managers can see the whole team.</p>
+                  <div className="row">
+                    <a href="/pricing" className="btn-primary">See plans</a>
+                    <button onClick={startConversation} className="btn-ghost">Run it again</button>
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: 'rgba(245,237,216,0.3)', marginTop: 14 }}>Scores are AI-generated coaching feedback, not a performance review.</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -412,16 +547,15 @@ export default function Home() {
         <h2 className="font-display" style={{ color: 'var(--dark)', fontSize: 'clamp(56px, 7vw, 96px)', marginBottom: 20 }}>
           Ready to<br />practice?
         </h2>
-        <p>No account needed. No budget approval. Get your team practicing in minutes — not months.</p>
-        <button className="btn-dark">Start for free — no signup</button>
-        <div className="free-note">Voice stays local · No account needed · Free to start</div>
+        <p>Run a free demo call right now, no account needed. When you want your calls saved and tracked, plans start at $19 a month.</p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', position: 'relative' }}>
+          <a href="#demo" className="btn-dark">Start the free demo</a>
+          <a href="/pricing" className="btn-dark" style={{ background: 'transparent', color: 'var(--dark)', border: '1px solid rgba(26,18,8,0.4)' }}>See plans</a>
+        </div>
+        <div className="free-note">Free demo · No signup · Demo calls aren&apos;t saved</div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer className="footer">
-        <div className="footer-logo">TrainField AI</div>
-        <div className="footer-note">Built for beer distribution teams · Voice stays local · No account needed</div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
