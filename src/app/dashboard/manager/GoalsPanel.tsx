@@ -84,12 +84,13 @@ export default function GoalsPanel() {
       {goals.length > 0 && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Active Team Goals ({goals.length})
             </div>
             <button
+              type="button"
               onClick={() => setShowForm(f => !f)}
-              style={{ fontSize: 11, fontWeight: 600, color: '#D4860A', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              style={{ fontSize: 12, fontWeight: 600, color: '#b45309', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
             >
               {showForm ? 'Cancel' : '+ Push Goal'}
             </button>
@@ -130,7 +131,9 @@ export default function GoalsPanel() {
                   <button
                     onClick={() => handleDelete(g.id)}
                     disabled={deleting === g.id}
-                    style={{ fontSize: 14, color: 'rgba(245,237,216,0.3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px', flexShrink: 0 }}
+                    type="button"
+                    aria-label={`Deactivate goal: ${g.goal_text}`}
+                    style={{ fontSize: 16, color: 'rgba(245,237,216,0.65)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', flexShrink: 0 }}
                     title="Deactivate goal"
                   >
                     {deleting === g.id ? '...' : '×'}
@@ -144,7 +147,7 @@ export default function GoalsPanel() {
 
       {goals.length === 0 && !showForm && (
         <div style={{ textAlign: 'center', padding: '24px', background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 12 }}>No active goals yet.</div>
+          <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>No active goals yet. Goals you push here show on every rep&apos;s dashboard and shape their practice calls.</div>
           <button
             onClick={() => setShowForm(true)}
             style={{ background: '#D4860A', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -167,8 +170,9 @@ export default function GoalsPanel() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Goal Description *</label>
+              <label htmlFor="goal-goal-description" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Goal Description *</label>
               <textarea
+                id="goal-goal-description"
                 value={form.goal_text}
                 onChange={e => setForm(f => ({ ...f, goal_text: e.target.value }))}
                 placeholder="e.g. Land 3 new c-store accounts, Push Seize the Summer 6-pack SKUs"
@@ -179,8 +183,9 @@ export default function GoalsPanel() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Goal Type</label>
+                <label htmlFor="goal-goal-type" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Goal Type</label>
                 <select
+                id="goal-goal-type"
                   value={form.goal_type}
                   onChange={e => setForm(f => ({ ...f, goal_type: e.target.value }))}
                   style={{ width: '100%', border: '1.5px solid #e5e7eb', borderRadius: 8, padding: '8px 10px', fontSize: 13, background: '#fff', color: '#1A1208' }}
@@ -191,8 +196,9 @@ export default function GoalsPanel() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Product / SKU</label>
+                <label htmlFor="goal-product-sku" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Product / SKU</label>
                 <input
+                id="goal-product-sku"
                   type="text"
                   value={form.product_sku}
                   onChange={e => setForm(f => ({ ...f, product_sku: e.target.value }))}
@@ -204,8 +210,9 @@ export default function GoalsPanel() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target Cases</label>
+                <label htmlFor="goal-target-cases" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target Cases</label>
                 <input
+                id="goal-target-cases"
                   type="number"
                   value={form.target_cases}
                   onChange={e => setForm(f => ({ ...f, target_cases: e.target.value }))}
@@ -215,8 +222,9 @@ export default function GoalsPanel() {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target PODs</label>
+                <label htmlFor="goal-target-pods" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target PODs</label>
                 <input
+                id="goal-target-pods"
                   type="number"
                   value={form.target_pods}
                   onChange={e => setForm(f => ({ ...f, target_pods: e.target.value }))}
@@ -228,8 +236,9 @@ export default function GoalsPanel() {
             </div>
 
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target Date</label>
+              <label htmlFor="goal-target-date" style={{ fontSize: 11, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>Target Date</label>
               <input
+                id="goal-target-date"
                 type="date"
                 value={form.target_date}
                 onChange={e => setForm(f => ({ ...f, target_date: e.target.value }))}

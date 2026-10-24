@@ -52,50 +52,54 @@ function SetPasswordForm() {
     router.replace('/dashboard');
   }
 
-  const input = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 15, boxSizing: 'border-box' as const };
-
   return (
-    <div style={{ maxWidth: 420, margin: '64px auto', padding: '0 20px' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Set your password</h1>
-      {stage === 'verifying' && <p>Checking your link…</p>}
+    <div className="auth-card">
+      <h1>Set your password</h1>
+      {stage === 'verifying' && <p className="sub" role="status">Checking your link…</p>}
       {stage === 'invalid' && (
-        <p>
-          This link has expired or was already used. Reply to your welcome email and we&apos;ll send a new one,
-          or <a href="/login" style={{ textDecoration: 'underline' }}>sign in</a> if you already set a password.
-        </p>
+        <>
+          <p className="sub" role="alert">
+            This link has expired or was already used. Reply to your welcome email and we&apos;ll send a new one.
+          </p>
+          <div className="auth-alt">
+            Already set a password? <a href="/login">Sign in</a>.
+          </div>
+        </>
       )}
       {(stage === 'ready' || stage === 'saving') && (
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
-          <p style={{ color: '#4b5563' }}>Choose a password for your TrainField AI account.</p>
-          <label>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>New password</div>
-            <input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} style={input} required minLength={8} />
-          </label>
-          <label>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Confirm password</div>
-            <input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={input} required minLength={8} />
-          </label>
-          {error && <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>{error}</p>}
-          <button type="submit" disabled={stage === 'saving'} style={{ padding: '12px 16px', borderRadius: 8, background: '#1A1208', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
-            {stage === 'saving' ? 'Saving…' : 'Save password'}
-          </button>
-        </form>
+        <>
+          <p className="sub">Choose a password for your TrainField AI account. Use at least 8 characters.</p>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label htmlFor="new-password">New password</label>
+              <input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+            </div>
+            <div>
+              <label htmlFor="confirm-password">Confirm password</label>
+              <input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
+            </div>
+            {error && <div className="err" role="alert">{error}</div>}
+            <button type="submit" disabled={stage === 'saving'} className="btn-primary" style={{ width: '100%', padding: 14, opacity: stage === 'saving' ? 0.6 : 1, cursor: stage === 'saving' ? 'not-allowed' : 'pointer' }}>
+              {stage === 'saving' ? 'Saving…' : 'Save password'}
+            </button>
+          </form>
+        </>
       )}
-      {stage === 'done' && <p>Password saved. Taking you to your dashboard…</p>}
+      {stage === 'done' && <p className="sub" role="status">Password saved. Taking you to your dashboard…</p>}
     </div>
   );
 }
 
 export default function SetPasswordPage() {
   return (
-    <>
+    <div className="page-wrap">
       <SiteHeader />
-      <main>
-        <Suspense fallback={<div style={{ maxWidth: 420, margin: '64px auto', padding: '0 20px' }}>Loading…</div>}>
+      <main className="page-main">
+        <Suspense fallback={<div className="auth-card"><h1>Set your password</h1><p className="sub" role="status">Loading…</p></div>}>
           <SetPasswordForm />
         </Suspense>
       </main>
       <SiteFooter />
-    </>
+    </div>
   );
 }

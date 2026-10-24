@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PERSONAS } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
-import Sidebar from '@/components/Sidebar';
+import DashboardNav from '@/components/DashboardNav';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -41,7 +41,7 @@ function PersonaCard({ persona, expanded, onToggle }: PersonaCardProps) {
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)', transition: 'all 0.2s',
       border: expanded ? `2px solid ${persona.color}` : '2px solid transparent',
     }}>
-      <button onClick={onToggle} style={{
+      <button type="button" aria-expanded={expanded} onClick={onToggle} style={{
         width: '100%', padding: '16px 20px', background: 'none', border: 'none',
         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left',
       }}>
@@ -49,37 +49,37 @@ function PersonaCard({ persona, expanded, onToggle }: PersonaCardProps) {
           width: 44, height: 44, borderRadius: '50%', background: `${persona.color}20`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 22, flexShrink: 0,
-        }}>
+        }} aria-hidden="true">
           {persona.emoji}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{persona.name}</div>
           <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>{persona.description}</div>
         </div>
-        <div style={{ fontSize: 18, color: '#9ca3af', flexShrink: 0, transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</div>
+        <div aria-hidden="true" style={{ fontSize: 14, color: '#6b7280', flexShrink: 0, transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</div>
       </button>
 
       {expanded && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid #f3f4f6' }}>
           <div style={{ paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: persona.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Your Goal</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Your Goal</div>
               <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{brief_data.dealObj}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: persona.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>What Wins This Call</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>What Wins This Call</div>
               <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{brief_data.win}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: persona.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Opening Line</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#4b5563', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Opening Line</div>
               <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.5, fontStyle: 'italic' }}>"{persona.openingLine.slice(0, 120)}{persona.openingLine.length > 120 ? '...' : ''}"</div>
             </div>
-            <a href="/dashboard/practice" style={{
+            <a href={`/dashboard/practice?persona=${encodeURIComponent(persona.id)}`} style={{
               display: 'block', textAlign: 'center', marginTop: 8, padding: '10px',
-              background: persona.color, borderRadius: 8, color: '#fff',
+              background: persona.color, borderRadius: 8, color: '#1A1208',
               fontSize: 12, fontWeight: 700, textDecoration: 'none', letterSpacing: '0.04em',
             }}>
-              🎤 Practice This Scenario →
+              <span aria-hidden="true">🎤 </span>Practice this scenario →
             </a>
           </div>
         </div>
@@ -94,7 +94,6 @@ export default function PersonasPage() {
   const [profile, setProfile] = useState<{ display_name: string; avatar_initial: string } | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeNav, setActiveNav] = useState('personas');
   const supabase = createClient();
 
@@ -116,28 +115,18 @@ export default function PersonasPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6', fontFamily: "'DM Sans', sans-serif" }}>
       {/* Mobile sidebar */}
-      <div style={{
-        position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, width: 220,
-        transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 0.25s ease',
-      }}>
-        <Sidebar active="personas" />
-      </div>
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
-      )}
 
       <div style={{ flex: 1, overflow: 'auto' }} className="main-content">
         {/* Header */}
         <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => setMobileMenuOpen(true)} className="hamburger-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, padding: 4, display: 'none' }}>☰</button>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>👥 Persona Library</div>
+          <DashboardNav active="personas" />
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}><span aria-hidden="true">👥 </span>Persona Library</div>
         </header>
 
-        <div style={{ padding: 28 }}>
+        <div className="personas-body" style={{ padding: 28 }}>
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#111827', marginBottom: 4 }}>AI Training Personas</h1>
-            <p style={{ fontSize: 13, color: '#6b7280' }}>14 realistic personas — each with a unique personality, objections, and goal. Tap any persona to see the scenario brief and start practicing.</p>
+            <p style={{ fontSize: 13, color: '#6b7280' }}>14 realistic personas — each with a unique personality, objections, and goal. Tap any persona to see the scenario brief, then start a practice call with that buyer.</p>
           </div>
 
           {categories.map(cat => (
@@ -145,9 +134,9 @@ export default function PersonasPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: cat.color }} />
                 <h2 style={{ fontSize: 13, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{cat.label}</h2>
-                <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 400 }}>({cat.personas.length})</div>
+                <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 400 }}>({cat.personas.length})</div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
                 {cat.personas.map(persona => (
                   <PersonaCard
                     key={persona.id}
@@ -163,12 +152,9 @@ export default function PersonasPage() {
       </div>
 
       <style>{`
-        @media (min-width: 769px) {
-          .hamburger-btn { display: block !important; }
-        }
         @media (max-width: 768px) {
-          .hamburger-btn { display: block !important; }
           .main-content { margin-left: 0 !important; }
+          .personas-body { padding: 16px !important; }
         }
       `}</style>
     </div>

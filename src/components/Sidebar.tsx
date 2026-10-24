@@ -47,26 +47,45 @@ function InlineSidebar({ active }: { active: string }) {
     <aside style={{ width: 220, background: '#13151F', minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '20px 0', borderRight: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#D4860A', letterSpacing: '0.05em' }}>TrainField AI</div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Sales Training OS</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>Sales Training OS</div>
       </div>
-      <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <nav aria-label="Dashboard" style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {visibleItems.map(item => (
           <a
             key={item.id}
             href={item.href}
+            aria-current={active === item.id ? 'page' : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
               borderRadius: 8, width: '100%',
               background: active === item.id ? 'rgba(212,134,10,0.15)' : 'transparent',
-              color: active === item.id ? '#FAC765' : 'rgba(255,255,255,0.5)',
+              color: active === item.id ? '#FAC765' : 'rgba(255,255,255,0.72)',
               fontSize: 13, fontWeight: 500, textDecoration: 'none', transition: 'all 0.15s',
             }}
           >
-            <span style={{ fontSize: 16 }}>{item.emoji}</span>
+            <span aria-hidden="true" style={{ fontSize: 16 }}>{item.emoji}</span>
             <span>{item.label}</span>
           </a>
         ))}
       </nav>
+      <div style={{ padding: '12px 12px 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        {email && (
+          <div style={{ padding: '0 12px 8px', fontSize: 11, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={email}>
+            {email}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={async () => {
+            await supabase.auth.signOut().catch(() => {});
+            window.location.href = '/login';
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 12px', borderRadius: 8, background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: 500, cursor: 'pointer', textAlign: 'left' }}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16 }}>↩</span>
+          <span>Sign out</span>
+        </button>
+      </div>
     </aside>
   );
 }
