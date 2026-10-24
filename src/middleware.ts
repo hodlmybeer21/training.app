@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isAdminEmail } from '@/lib/admin'
 
 // middleware.ts - last updated 2026-06-03
 export async function middleware(req: NextRequest) {
@@ -55,7 +56,7 @@ export async function middleware(req: NextRequest) {
   const userEmail = user.email ?? null
 
   if (path.startsWith('/dashboard')) {
-    // Admin page: Tyler only
+    // Admin page: profile role 'admin', or an email listed in ADMIN_EMAILS
     if (path === '/dashboard/admin' || path === '/dashboard/admin/') {
       const { data: profile } = await supabase
         .from('profiles')
@@ -63,8 +64,7 @@ export async function middleware(req: NextRequest) {
         .eq('id', userId)
         .single()
 
-      const isTyler = userEmail === 'tyler.dubuque@gmail.com'
-      if (profile?.role !== 'admin' && !isTyler) {
+      if (profile?.role !== 'admin' && !isAdminEmail(userEmail)) {
         return NextResponse.redirect(new URL('/dashboard', req.url))
       }
     }

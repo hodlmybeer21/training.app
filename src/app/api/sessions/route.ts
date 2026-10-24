@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
+import { getSessionUser } from '@/lib/server/auth';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
 export async function POST(req: NextRequest) {
   try {
-    let userId: string | null = null;
-    try {
-      const supabaseServer = await createClient();
-      const { data: { user } } = await supabaseServer.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {
-      // Server auth failed
-    }
-
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -59,18 +48,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    let userId: string | null = null;
-    try {
-      const supabaseServer = await createClient();
-      const { data: { user } } = await supabaseServer.auth.getUser();
-      userId = user?.id ?? null;
-    } catch {
-      // fallback to explicit header
-    }
-
-    if (!userId) {
-      userId = req.headers.get('x-user-id') ?? null;
-    }
+    // Only trust the signed-in session cookie, never a client-supplied user ID.
+    const userId = (await getSessionUser())?.id ?? null;
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,7 +59,7 @@ export async function GET(req: NextRequest) {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
-    const limit = parseInt(new URL(req.url).searchParams.get('limit') || '20');
+    const limit = Math.min(Math.max(parseInt(new URL(req.url).searchParams.get('limit') || '20') || 20, 1), 100);
 
     const { data, error } = await supabase
       .from('sessions')

@@ -64,8 +64,9 @@ export default function Home() {
     setGroqError('');
     const conversationMessages = [...conversationRef.current, { role: 'user' as const, content: userText }];
     try {
-      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: conversationMessages }) });
-      if (!response.ok) { const err = await response.text(); throw new Error(err); }
+      // Public demo: the server sets the persona prompt from personaId, so only the turns are sent.
+      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, messages: conversationMessages.filter(m => m.role !== 'system') }) });
+      if (!response.ok) { const err = await response.json().catch(() => null); throw new Error(err?.error || 'Something went wrong'); }
       const data = await response.json();
       const reply = data.choices?.[0]?.message?.content || "I'm sorry, I didn't catch that.";
       conversationRef.current = [...conversationMessages, { role: 'assistant', content: reply }];

@@ -53,7 +53,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': profile.id },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: displayName.trim() || displayName,
           avatar_initial: avatarText.trim().substring(0, 1).toUpperCase(),
