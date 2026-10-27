@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,6 +7,25 @@ export const metadata: Metadata = {
     template: "%s · TrainField AI",
   },
   description: "Rehearse tough buyer conversations out loud with an AI buyer, then get a scored debrief. Free demo, no account needed.",
+  metadataBase: new URL("https://training.goodbotai.tech"),
+  alternates: { canonical: "./" },
+  applicationName: "TrainField AI",
+  openGraph: {
+    type: "website",
+    siteName: "TrainField AI",
+    title: "TrainField AI: Train before you pitch",
+    description: "Voice roleplay for beer distribution sales reps. Pitch an AI buyer out loud, then get a scored debrief. Free demo, no account needed.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "TrainField AI: Train before you pitch",
+    description: "Voice roleplay for beer distribution sales reps. Pitch an AI buyer out loud, then get a scored debrief.",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1A1208",
 };
 
 export default function RootLayout({
