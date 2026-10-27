@@ -7,6 +7,7 @@ import { Persona } from '@/lib/personas';
 import { CATEGORIES } from '@/lib/categories';
 import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 import { getCategoryById } from '@/lib/categories';
+import { buildScenarioPrompt } from '@/lib/roleplay';
 import { SAMPLE_INCENTIVES, getSampleIncentive, incentiveBuyerPrompt, normalizeIncentiveGoal } from '@/lib/incentives';
 import { IncentiveBrief, IncentiveGoalCard, SampleBadge } from '@/components/Incentives';
 
@@ -857,18 +858,7 @@ export default function PracticePage() {
 
   const getSystemPrompt = () => {
     const base = selectedPersona.systemPrompt;
-    const stageContext: Record<string, string> = {
-      'initial-pitch': `\n[DEAL STAGE: INITIAL PITCH] The prospect has not heard your full pitch yet. They are curious but guarded. They are evaluating whether you are worth their time. Do NOT concede on price. Focus on establishing credibility and qualifying their needs. Ask good discovery questions. Do not rush to present pricing.`,
-      'proposal': `\n[DEAL STAGE: PROPOSAL] The prospect has seen your proposal/pricing. They are evaluating fit and value vs. cost. They will raise specific objections about pricing, terms, and competing options. They want to justify switching or signing. Help them build the business case — be specific about ROI and risk reversal.`,
-      'negotiation': `\n[DEAL STAGE: NEGOTIATION] The prospect is actively negotiating. They want concessions — price, delivery, terms, exclusivity. They will push hard and may use pressure tactics. Do NOT cave to demands without getting something in return. Every concession should be conditional. Trade value, don't give things away for free.`,
-      'renewal': `\n[DEAL STAGE: RENEWAL] This is a retention situation. The prospect may be comfortable but has likely already decided to leave or stay. Your job is to understand their current situation, acknowledge any past issues, and make a compelling case for staying. Acknowledge their current pain points. Don't assume loyalty.`,
-    };
-    const difficultyMod: Record<string, string> = {
-      'easy': `\n[DIFFICULTY: EASY] The prospect is warm and receptive. They want this to work. Objections are mild and easily addressed. They will agree to next steps if you present a clear path forward. This is a cooperative conversation.`,
-      'challenging': `\n[DIFFICULTY: CHALLENGING] The prospect is realistic and skeptical. They ask fair questions and push back on things that don't make sense. You must earn their trust through good answers, not charm. Respond with substance.`,
-      'intense': `\n[DIFFICULTY: INTENSE] The prospect is aggressive, demanding, and uses pressure tactics. They will interrupt, issue ultimatums, and try to make you feel desperate. Do NOT show desperation. Stay composed. They may say "I have other options" or make extreme demands. Your job is to match their intensity with calm confidence and redirect to real value.`,
-    };
-    return base + (stageContext[dealStage] || '') + (difficultyMod[difficulty] || '') + (incentive ? incentiveBuyerPrompt(incentive) : '');
+    return buildScenarioPrompt(base, dealStage, difficulty, incentive ? incentiveBuyerPrompt(incentive) : '');
   };
 
   const getBrief = () => {
@@ -898,7 +888,7 @@ export default function PracticePage() {
     setStatus('thinking');
     const conversationMessages = [...conversationRef.current, { role: 'user' as const, content: userText }];
     try {
-      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: conversationMessages }) });
+      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, messages: conversationMessages }) });
       if (!response.ok) { const err = await response.text(); throw new Error(err); }
       const data = await response.json();
       const reply = data.choices?.[0]?.message?.content || "I'm sorry, I didn't catch that.";

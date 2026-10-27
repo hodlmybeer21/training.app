@@ -4,6 +4,7 @@ import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany, ChatMessage } from '@/lib/server/ai-guard';
 import { groqChat } from '@/lib/server/groq-chat';
 import { getSampleIncentive, incentiveBuyerPrompt } from '@/lib/incentives';
+import { withRoleLock, roleplayReply } from '@/lib/server/roleplay-reply';
 
 const MINUTE = 60_000;
 
@@ -25,7 +26,8 @@ export async function POST(req: NextRequest) {
         { limit: 400, windowMs: 24 * 60 * MINUTE },
       ]);
       if (!rl.ok) return tooMany(rl.retryAfterSeconds, true);
-      messages = cleanMessages(body.messages, { maxMessages: 80, maxCharsEach: 4000, maxCharsTotal: 40000, allowSystem: true });
+      const cleaned = cleanMessages(body.messages, { maxMessages: 80, maxCharsEach: 4000, maxCharsTotal: 40000, allowSystem: true });
+      messages = cleaned ? withRoleLock(cleaned, body.personaId) : null;
     } else {
       // Public demo: only built-in personas, system prompt is set on the server.
       const rl = rateLimitAll(`groq:ip:${clientIp(req.headers)}`, [
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
       if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
       const turns = cleanMessages(body.messages, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
       const system = persona.systemPrompt + (incentive ? incentiveBuyerPrompt(incentive) : '');
-      messages = turns ? [{ role: 'system', content: system }, ...turns] : null;
+      messages = turns ? withRoleLock([{ role: 'system', content: system }, ...turns], persona.id) : null;
       maxTokens = 300;
     }
 
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    const result = await groqChat(apiKey, { messages, temperature: 0.8, maxTokens });
+    const result = await roleplayReply(apiKey, messages, body.personaId, maxTokens, groqChat);
     if (!result.ok) {
       return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
     }
