@@ -22,7 +22,8 @@ describe('groqChat', () => {
     const [, init] = f.mock.calls[0];
     expect(init.headers.Authorization).toBe('Bearer key');
     const body = JSON.parse(init.body);
-    expect(body).toMatchObject({ model: 'openai/gpt-oss-20b', reasoning_effort: 'low', max_tokens: 300 });
+    expect(body).toMatchObject({ model: GROQ_MODELS[0], max_tokens: 300 });
+    expect(body.reasoning_effort).toBeUndefined();
     expect(body.response_format).toBeUndefined();
   });
 
@@ -35,9 +36,12 @@ describe('groqChat', () => {
     const r = await groqChat('k', { messages: msgs, temperature: 0.3, maxTokens: 1024, json: true }, f);
     expect(r).toEqual({ ok: true, content: '{"overallScore":70}', model: GROQ_MODELS[2] });
     expect(f).toHaveBeenCalledTimes(3);
+    const first = JSON.parse(f.mock.calls[0][1].body);
+    expect(first.model).toBe('qwen/qwen3.8-27b');
+    expect(first.reasoning_effort).toBeUndefined();
     const second = JSON.parse(f.mock.calls[1][1].body);
-    expect(second.model).toBe('qwen/qwen3.8-27b');
-    expect(second.reasoning_effort).toBeUndefined();
+    expect(second.model).toBe('openai/gpt-oss-20b');
+    expect(second.reasoning_effort).toBe('low');
     expect(second.response_format).toEqual({ type: 'json_object' });
   });
 

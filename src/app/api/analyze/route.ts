@@ -3,6 +3,7 @@ import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany } from '@/lib/server/ai-guard';
 import { groqChat } from '@/lib/server/groq-chat';
+import { formatTranscript } from '@/lib/roleplay';
 import { getSampleIncentive, incentiveScoringPrompt, INCENTIVE_JSON_FIELD, normalizeIncentiveGoal } from '@/lib/incentives';
 
 const MINUTE = 60_000;
@@ -57,13 +58,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    // Build readable transcript string
-    const transcriptText = transcript
-      .map((m) => {
-        const speaker = m.role === 'user' ? 'Salesperson' : 'Prospect';
-        return `${speaker}: ${m.content}`;
-      })
-      .join('\n');
+    // Speakers are labelled by role: user = the rep being scored, assistant = the AI buyer.
+    const transcriptText = formatTranscript(transcript);
 
     const scenarioContext = scoringHints
       ? `\n\nPERSONA-SPECIFIC SCORING CONTEXT:\n${scoringHints}\n\nUse these specific criteria when evaluating the salesperson's performance in this scenario.`
@@ -75,6 +71,8 @@ export async function POST(req: NextRequest) {
 
 SCENARIO: ${scenarioName || 'General sales call'}${scenarioContext}${incentiveContext}
 DURATION: ${durationSeconds ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` : 'Unknown'}
+
+SPEAKERS: Lines marked "SALES REP (trainee)" are the person being scored. Lines marked "BUYER (AI roleplay)" are the simulated buyer and are NEVER scored or credited to the rep. If a BUYER line offers product, pricing, free goods or shipping, that is the simulation drifting: ignore it, do not credit the rep for it, and do not penalize the rep for it. Every strength, opportunity and quote you cite must come from a SALES REP line.
 
 TRANSCRIPT:
 ${transcriptText}

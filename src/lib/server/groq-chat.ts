@@ -4,7 +4,9 @@ import type { ChatMessage } from '@/lib/server/ai-guard';
 // returns 404 model_not_found). These are models Groq serves today, in order of
 // preference. If one is retired (404) or rate limited (429, free-tier limits are
 // per model), the next one is tried. GROQ_MODEL can put a different model first.
-export const GROQ_MODELS = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'] as const;
+// qwen3.8-27b is first: in side-by-side buyer roleplay tests it stayed in character
+// with short spoken replies, where gpt-oss-20b drifted into lists and rep-style questions.
+export const GROQ_MODELS = ['qwen/qwen3.8-27b', 'openai/gpt-oss-20b', 'openai/gpt-oss-120b'] as const;
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
