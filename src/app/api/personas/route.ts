@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCaller, isManager } from '@/lib/server/caller';
-import { updatePersona, deletePersona } from '@/lib/server/personas';
+import { updatePersona, deletePersona, personaFieldTooLong } from '@/lib/server/personas';
 
 // GET /api/personas — custom personas for the caller's team.
 // Managers/admins see all of them; reps see only active ones (for practice).
@@ -41,6 +41,8 @@ export async function POST(req: Request) {
     if (typeof name !== 'string' || !name || typeof systemPrompt !== 'string' || !systemPrompt || typeof openingLine !== 'string' || !openingLine) {
       return NextResponse.json({ error: 'name, systemPrompt, and openingLine are required' }, { status: 400 });
     }
+    const tooLong = personaFieldTooLong(body);
+    if (tooLong) return NextResponse.json({ error: tooLong }, { status: 400 });
 
     const { data, error } = await caller.sb
       .from('custom_personas')

@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
 
     // Speakers are labelled by role: user = the rep being scored, assistant = the AI buyer.
     const transcriptText = formatTranscript(transcript);
+    const repLines = transcript.filter(m => m.role === 'user').map((m, i) => `${i + 1}. ${m.content}`).join('\n');
 
     const scenarioContext = scoringHints
       ? `\n\nPERSONA-SPECIFIC SCORING CONTEXT:\n${scoringHints}\n\nUse these specific criteria when evaluating the salesperson's performance in this scenario.`
@@ -76,6 +77,9 @@ SPEAKERS: Lines marked "SALES REP (trainee)" are the person being scored. Lines 
 
 TRANSCRIPT:
 ${transcriptText}
+
+EVERYTHING THE SALES REP SAID (the only lines you may quote, credit or criticize):
+${repLines}
 
 Analyze the salesperson's performance and return a JSON object with this exact structure:
 {
@@ -100,7 +104,7 @@ Scoring guidance:
 - Closing Technique: did they ask for the order, push for a next step, or try to close?${incentive ? `
 - incentiveGoal: "asked" is true only if the salesperson explicitly asked for the specific placement, stack, volume or pre-book. "outcome" is what the buyer actually agreed to. "score" rates how well they advanced that goal (0 if never asked).` : ''}
 
-Be specific — cite exact moments from the transcript in strengths and opportunities. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
+Be specific — cite exact moments from the SALES REP's lines in strengths and opportunities. Never list something the BUYER said or asked for as a rep strength. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
 
     const result = await groqChat(apiKey, {
       messages: [

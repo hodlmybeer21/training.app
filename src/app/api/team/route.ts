@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       .eq('id', userId)
       .single();
 
-    if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 500 });
+    if (profileErr) return NextResponse.json({ error: 'Could not load your profile' }, { status: 500 });
     if (myProfile.role !== 'manager' && myProfile.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
       team_avg_overall: avg(teamOverallScores),
     });
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Server error' }, { status: 500 });
+    console.error('team route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

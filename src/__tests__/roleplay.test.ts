@@ -110,3 +110,11 @@ describe('roleplayReply', () => {
     expect(chat).toHaveBeenCalledTimes(1);
   });
 });
+
+import { personaFieldTooLong, PERSONA_LIMITS } from '@/lib/server/personas';
+describe('persona field limits', () => {
+  it('rejects oversized persona text and accepts normal input', () => {
+    expect(personaFieldTooLong({ name: 'Bar owner', systemPrompt: 'x'.repeat(500) })).toBeNull();
+    expect(personaFieldTooLong({ systemPrompt: 'x'.repeat(PERSONA_LIMITS.systemPrompt + 1) })).toMatch(/systemPrompt is too long/);
+  });
+});
