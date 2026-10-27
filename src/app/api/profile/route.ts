@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ profile, isAdmin, teamName });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('profile route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -38,7 +38,12 @@ export async function PATCH(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { display_name, avatar_initial, bio } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const display_name = str(body.display_name, 80);
+    const avatar_initial = str(body.avatar_initial, 2);
+    const bio = str(body.bio, 500);
 
     const { data, error } = await supabase
       .from('profiles')
@@ -55,7 +60,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ profile: data });
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('profile route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

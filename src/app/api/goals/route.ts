@@ -44,7 +44,8 @@ export async function GET(req: NextRequest) {
     const goal_context = buildGoalContext(goals || []);
     return NextResponse.json({ goals: goals || [], goal_context });
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Server error' }, { status: 500 });
+    console.error('goals route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ goal });
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Server error' }, { status: 500 });
+    console.error('goals route error', e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
 

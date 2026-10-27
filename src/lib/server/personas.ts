@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getCaller, isManager } from '@/lib/server/caller';
 
+// Practice sends the persona prompt with every turn, so keep it well under the chat size limit.
+export const PERSONA_LIMITS: Record<string, number> = {
+  name: 80, emoji: 8, color: 32, description: 500, systemPrompt: 6000, openingLine: 600,
+};
+
+/** Returns an error message if any persona text field is over its limit. */
+export function personaFieldTooLong(body: Record<string, unknown>): string | null {
+  for (const [k, max] of Object.entries(PERSONA_LIMITS)) {
+    const v = body[k];
+    if (typeof v === 'string' && v.length > max) return `${k} is too long (max ${max} characters)`;
+  }
+  return null;
+}
+
 // Shared handlers for /api/personas (?id=) and /api/personas/[id].
 // Only managers/admins of the persona's team can change or delete it.
 
@@ -19,6 +33,9 @@ export async function updatePersona(req: Request, id: string | null) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
+
+    const tooLong = personaFieldTooLong(body);
+    if (tooLong) return NextResponse.json({ error: tooLong }, { status: 400 });
 
     // Whitelist: team_id, manager_id and id can never be changed from the client.
     const dbBody: Record<string, unknown> = {};
