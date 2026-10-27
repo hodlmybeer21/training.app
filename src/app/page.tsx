@@ -475,7 +475,7 @@ export default function Home() {
 
         <button
           onClick={startConversation}
-          className="btn-primary"
+          className="btn-primary demo-start"
           style={{ display: 'block', marginTop: 32, fontSize: 15, padding: '16px 40px' }}
         >
           Start roleplay: {selectedPersona.emoji} {selectedPersona.name}
