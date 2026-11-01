@@ -267,14 +267,14 @@ export default function Home() {
                 <div className="live-badge"><div className="live-dot" />Live</div>
               </div>
               <div className="phone-body">
-                <div className="scenario-tag">Scenario: Difficult Customer</div>
+                <div className="scenario-tag">Example scenario: Bar owner</div>
                 <div className="chat-msg">
                   <div className="name-tag">AI Customer</div>
-                  <div className="chat-bubble ai">Your prices are 12% above the competition. Why would I switch?</div>
+                  <div className="chat-bubble ai">My taps are full. Why should your beer get a line?</div>
                 </div>
                 <div className="chat-msg clearfix">
                   <div className="name-tag user-name">You</div>
-                  <div className="chat-bubble user">The margin on our craft lineup beats their volume brands every time...</div>
+                  <div className="chat-bubble user">Fair question. What&apos;s not pouring the way you want right now?</div>
                 </div>
                 <div className="chat-msg">
                   <div className="name-tag">AI Customer</div>
@@ -354,7 +354,7 @@ export default function Home() {
       <section className="why-section">
         <div className="why-left">
           <div className="section-label">Why it works</div>
-          <h2 className="section-title">Words spoken <em>matter</em><br />more than typed</h2>
+          <h2 className="section-title">Practice it <em>out loud</em><br />before the real call</h2>
           <p style={{ fontSize: 16, fontWeight: 300, lineHeight: 1.75, color: 'rgba(245,237,216,0.55)', maxWidth: 440, marginBottom: 36 }}>
             Reps don&apos;t send emails in the field. They talk. TrainField trains the part that matters in a buyer meeting: what you say, how you handle the objection, and whether you ask for the order.
           </p>
@@ -377,7 +377,7 @@ export default function Home() {
         <div className="why-right">
           <div className="feedback-card">
             <div className="feedback-header">
-              <div className="fb-title">Sample debrief</div>
+              <div className="fb-title">Example debrief (illustration)</div>
               <div className="fb-score">84 / 100</div>
             </div>
             <div className="feedback-body">
@@ -393,7 +393,7 @@ export default function Home() {
                 </div>
               ))}
               <div className="fb-quote">
-                Strong on data. You quoted margin numbers confidently. Work on closing earlier; you circled price twice without asking for the order.
+                Example of the feedback format: what you did well, what to fix, and a tip for next time. Your real debrief is written from your own call.
               </div>
             </div>
           </div>

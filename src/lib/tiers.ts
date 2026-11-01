@@ -1,5 +1,6 @@
 // Paid plans and their seat limits. These mirror the pricing page
-// (src/app/pricing/page.tsx): Small Team "Up to 5 seats", Team "Up to 15 seats".
+// (src/app/pricing/page.tsx): Small Team "Up to 5 seats (you + 4 reps)", Team "Up to 15 seats (you + 14 reps)".
+// Seats count the manager too. SEAT_SUMMARY is shown on Stripe Checkout so it says the same thing.
 // Solo is a single-rep plan, so it has one seat.
 // Keys match the tier names the Stripe webhook stores (see PLANS below).
 export const TIER_SEAT_LIMITS = {
@@ -9,6 +10,12 @@ export const TIER_SEAT_LIMITS = {
 } as const;
 
 export type PaidTier = keyof typeof TIER_SEAT_LIMITS;
+
+/** One-line seat summary per plan, matching the pricing page wording. */
+export function seatSummary(tier: PaidTier): string {
+  const n = TIER_SEAT_LIMITS[tier];
+  return n === 1 ? '1 seat (just you)' : `Up to ${n} seats (you + ${n - 1} reps)`;
+}
 
 export const TIER_DISPLAY: Record<PaidTier, string> = {
   solo: 'Solo',

@@ -5,9 +5,54 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
  * /set-password page with Supabase's one-time token hash, so it does not depend
  * on Supabase's redirect URL allow-list. No password is ever created here.
  */
-export function buildSetPasswordLink(hashedToken: string): string {
+export function buildSetPasswordLink(hashedToken: string, type: 'invite' | 'recovery' = 'invite'): string {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://training.goodbotai.tech';
-  return `${baseUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=invite`;
+  return `${baseUrl}/set-password?token_hash=${encodeURIComponent(hashedToken)}&type=${type}`;
+}
+
+/**
+ * Builds a one-time password-reset link for an existing user. Returns null when
+ * there is no such user (or Supabase refuses), so callers can answer the same way
+ * either way and not reveal which emails have accounts.
+ */
+export async function createRecoveryLink(sb: SupabaseClient, email: string): Promise<string | null> {
+  const { data, error } = await sb.auth.admin.generateLink({ type: 'recovery', email });
+  if (error || !data?.properties?.hashed_token) return null;
+  return buildSetPasswordLink(data.properties.hashed_token, 'recovery');
+}
+
+/** Emails a password-reset link via AgentMail. Returns true if the send was accepted. */
+export async function sendPasswordResetEmail(email: string, link: string): Promise<boolean> {
+  const text = `Someone asked to reset the password for the TrainField AI account ${email}.
+
+Choose a new password here:
+${link}
+
+This link works once and expires soon. If you didn't ask for this, you can ignore this email; your password hasn't changed.
+
+— TrainField AI`;
+  return sendAgentMail(email, 'Reset your TrainField AI password', text);
+}
+
+async function sendAgentMail(email: string, subject: string, text: string): Promise<boolean> {
+  const key = process.env.AGENTMAIL_API_KEY;
+  if (!key) {
+    console.log('AgentMail not configured, skipping email');
+    return false;
+  }
+  try {
+    const res = await fetch('https://api.agentmail.to/v0/inboxes/goodbot@agentmail.to/messages/send', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: [email], subject, text, from: 'goodbot@agentmail.to' }),
+    });
+    // Only the status is logged: the response may echo the message body (which holds the link).
+    console.log(`Email API response status: ${res.status}`);
+    return res.ok;
+  } catch (e: unknown) {
+    console.error('Failed to send email:', e instanceof Error ? e.message : e);
+    return false;
+  }
 }
 
 /**
@@ -35,11 +80,6 @@ export async function createInvitedUser(
 
 /** Emails the set-password link via AgentMail. Returns true if the send was accepted. */
 export async function sendInviteEmail(email: string, link: string, intro: string): Promise<boolean> {
-  const key = process.env.AGENTMAIL_API_KEY;
-  if (!key) {
-    console.log('AgentMail not configured, skipping invite email');
-    return false;
-  }
   const text = `${intro}
 
 Set your password here to finish signing up:
@@ -49,19 +89,7 @@ This link works once and expires soon. If it has expired, reply to this email an
 
 Welcome aboard!
 — TrainField AI`;
-  try {
-    const res = await fetch('https://api.agentmail.to/v0/inboxes/goodbot@agentmail.to/messages/send', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: [email], subject: 'Your TrainField AI account is ready', text, from: 'goodbot@agentmail.to' }),
-    });
-    // Only the status is logged: the response may echo the message body (which holds the link).
-    console.log(`Invite email API response status: ${res.status}`);
-    return res.ok;
-  } catch (e: unknown) {
-    console.error('Failed to send invite email:', e instanceof Error ? e.message : e);
-    return false;
-  }
+  return sendAgentMail(email, 'Your TrainField AI account is ready', text);
 }
 
 /** Finds an auth user by email, paging through every user (not just the first 50). */

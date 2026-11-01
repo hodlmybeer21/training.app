@@ -55,7 +55,7 @@ const TIERS: Tier[] = [
     description: 'For a sales manager with a small team.',
     features: [
       'Everything in Solo',
-      'Up to 5 seats',
+      'Up to 5 seats (you + 4 reps)',
       'Manager view of team sessions and scores',
       'Custom buyer personas for your accounts',
       'Manager-set practice goals',
@@ -70,7 +70,7 @@ const TIERS: Tier[] = [
     description: 'For a full district or sales floor.',
     features: [
       'Everything in Small Team',
-      'Up to 15 seats',
+      'Up to 15 seats (you + 14 reps)',
       'Add reps yourself, or we set up their logins',
     ],
     cta: 'Start Team',
@@ -113,7 +113,7 @@ export default function PricingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             priceId: tier.id,
-            successUrl: `${baseUrl}/dashboard?upgrade=success`,
+            successUrl: `${baseUrl}/welcome?checkout=success`,
             cancelUrl: `${baseUrl}/pricing`,
           }),
         });
@@ -144,7 +144,7 @@ export default function PricingPage() {
         body: JSON.stringify({
           priceId: tier.id, // 'solo' | 'small' | 'team'
           email: user.email,
-          successUrl: `${baseUrl}/dashboard?upgrade=success`,
+          successUrl: `${baseUrl}/welcome?checkout=success`,
           cancelUrl: `${baseUrl}/pricing`,
         }),
       });

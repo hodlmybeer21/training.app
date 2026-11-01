@@ -122,7 +122,7 @@ export const SAMPLE_INCENTIVES: SampleIncentive[] = [
     talkingPoints: [
       'An amber is the easy middle of your tap list, for people who do not want an IPA or a light lager.',
       'First keg comes with coasters, a tap handle and a staff tasting before your Friday rush.',
-      'If it is not pouring well after 30 days, we swap it for something that does.',
+      'I check the line every visit, keep the keg fresh and rotated, and we look at the pour numbers together at 30 days.',
     ],
     ask: 'put Hollow Pine Amber on one draft line for 30 days, starting with the next keg change',
     buyerPushback: 'all your lines are spoken for; regulars complain when a beer rotates off; kegs that sit go stale and cost you money',
