@@ -12,7 +12,7 @@ import { verifyTurn, type TurnMessage } from '@/lib/server/turn-token';
 
 const MINUTE = 60_000;
 
-async function score(apiKey: string, prompt: string, incentive: SampleIncentive | null, profile: IndustryProfile): Promise<Analysis | { error: string }> {
+async function score(apiKey: string, prompt: string, incentive: SampleIncentive | null, profile: IndustryProfile, traineeLines: string[] = []): Promise<Analysis | { error: string }> {
   const result = await groqChat(apiKey, {
     messages: [
       { role: 'system', content: prompt },
@@ -23,7 +23,7 @@ async function score(apiKey: string, prompt: string, incentive: SampleIncentive 
     json: true,
   });
   if (!result.ok) return { error: 'The AI service had a problem. Try again.' };
-  return parseAnalysis(result.content, incentive, profile) ?? { error: 'Could not read the score. Try again.' };
+  return parseAnalysis(result.content, incentive, profile, traineeLines) ?? { error: 'Could not read the score. Try again.' };
 }
 
 type SessionRow = {
@@ -117,7 +117,7 @@ async function signedInAnalyze(userId: string, body: Record<string, unknown>) {
     durationSeconds,
     transcript,
     profile: industry,
-  }), opts.incentive, industry);
+  }), opts.incentive, industry, transcript.filter(m => m.role === 'user').map(m => m.content));
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
 
   // Link to a store-owner account only if the caller owns it; otherwise drop it.
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    const result = await score(apiKey, buildScoringPrompt({ scenarioName: persona.name, incentive, durationSeconds, transcript, profile }), incentive, profile);
+    const result = await score(apiKey, buildScoringPrompt({ scenarioName: persona.name, incentive, durationSeconds, transcript, profile }), incentive, profile, transcript.filter(m => m.role === 'user').map(m => m.content));
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json({ analysis: result });
   } catch (e: unknown) {

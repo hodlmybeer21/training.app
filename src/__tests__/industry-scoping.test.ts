@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { buildScoringPrompt, parseAnalysis } from '@/lib/server/scoring';
 import { SAFE_MARKETING_TIP, recommendsSteering } from '@/lib/compliance';
 import {
-  CATEGORY_IDS, SAFE_TIPS, incentivesAllowed, profileFor, scorecardFor, skillLabels, stageContextFor, stageOpeningFor,
+  CATEGORY_IDS, SAFE_TIPS, SECOND_SAFE_TIPS, SAFE_DRILLS, BEER_SAFE_TIP_2, incentivesAllowed, profileFor, scorecardFor, skillLabels, stageContextFor, stageOpeningFor,
   type IndustryProfile,
 } from '@/lib/industry';
 import { buildScenarioPrompt, openingLineFor, roleLock } from '@/lib/roleplay';
@@ -90,18 +90,21 @@ describe('debrief clean-up by industry', () => {
     const kept = parseAnalysis(json({ coachingTips: tips }), null, 'real-estate')!;
     expect(kept.coachingTips).toEqual(tips);
     const empty = parseAnalysis(json({ coachingTips: [] }), null, 'real-estate')!;
-    expect(empty.coachingTips).toEqual([SAFE_TIPS['real-estate']]);
+    expect(empty.coachingTips).toEqual([SAFE_TIPS['real-estate'], SECOND_SAFE_TIPS['real-estate']]);
   });
 
   it.each(NON_BEER)('%s debrief falls back to its own safe tip, never the keg/tap tip', (profile) => {
     const a = parseAnalysis(json({ coachingTips: [] }), null, profile)!;
-    expect(a.coachingTips).toEqual([SAFE_TIPS[profile as Exclude<IndustryProfile, 'beer-distribution'>]]);
+    const p = profile as Exclude<IndustryProfile, 'beer-distribution'>;
+    expect(a.coachingTips).toEqual([SAFE_TIPS[p], SECOND_SAFE_TIPS[p]]);
+    expect(a.recommendedDrill).toBe(SAFE_DRILLS[profile]);
+    expect(`${a.coachingTips.join(' ')} ${a.recommendedDrill}`).not.toMatch(BEER_WORDS);
     expect(a.coachingTips.join(' ')).not.toMatch(BEER_WORDS);
   });
 
   it('beer still strips inducement tips and adds the tap/keg safe tip', () => {
     const a = parseAnalysis(json({ coachingTips: ['Offer them a free keg to get the line.'] }), null, 'beer-distribution')!;
-    expect(a.coachingTips).toEqual([SAFE_MARKETING_TIP]);
+    expect(a.coachingTips).toEqual([SAFE_MARKETING_TIP, BEER_SAFE_TIP_2]);
   });
 
   it('real estate drops steering lines and keeps lines that warn against it', () => {
@@ -112,7 +115,7 @@ describe('debrief clean-up by industry', () => {
     expect(recommendsSteering('Redirect any question about religion in the area to neutral, public sources.')).toBe(false);
     const a = parseAnalysis(json({ coachingTips: [steer, warn], recommendedDrill: 'Practice steering buyers toward the right area.' }), null, 'real-estate')!;
     expect(a.coachingTips).toEqual([warn, SAFE_TIPS['real-estate']]);
-    expect(a.recommendedDrill).toBeNull();
+    expect(a.recommendedDrill).toBe(SAFE_DRILLS['real-estate']);
   });
 
   it('sample incentive goals are only kept on beer calls', () => {
@@ -219,7 +222,7 @@ describe('free demo', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(JSON.stringify(body)).not.toMatch(BEER_WORDS);
-    expect(body.analysis.coachingTips).toEqual([SAFE_TIPS['real-estate']]);
+    expect(body.analysis.coachingTips).toEqual([SAFE_TIPS['real-estate'], SECOND_SAFE_TIPS['real-estate']]);
     const prompt = sent[0].messages[0].content as string;
     expect(prompt).toMatch(/real estate/);
     expect(prompt).not.toMatch(/tied-house/);

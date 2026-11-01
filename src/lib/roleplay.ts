@@ -89,11 +89,37 @@ export function looksLikeRepSpeak(reply: string): boolean {
 
 /** Strip a speaker label or reasoning block the model sometimes adds. */
 export function cleanReply(reply: string): string {
-  return reply
+  const text = reply
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/^\s*(?:buyer|owner|prospect|assistant)\s*:\s*/i, '')
+    .replace(/^\s*(?:buyer|owner|prospect|assistant|client|customer)\s*:\s*/i, '')
     .trim();
+  return firstReplySegment(text);
 }
+
+// Groq's gpt-oss models (the fallback when the first model is rate limited) sometimes
+// return more than one answer, or leaked planning notes, glued together with no
+// space: "…for a themed night.Got it. We're already stocked…" or
+// "…fall tasting.We need to ask about margins…". The first segment is the character's
+// actual reply to the trainee; everything after the seam is dropped. A sentence end
+// followed directly by a capital letter is the seam, since normal prose has a space.
+const GLUED_SEAM = /[a-z0-9)][.!?]["”’)]?(?=[A-Z][a-z’'])/g;
+// A made-up next turn for the trainee ("\nRep: …") is cut off the same way.
+const NEXT_TURN = /\n\s*(?:rep|sales\s+rep|agent|trainee|user|you|me|manager)\s*:/i;
+const MIN_FIRST_SEGMENT = 30;
+
+export function firstReplySegment(text: string): string {
+  let out = text;
+  const turn = out.search(NEXT_TURN);
+  if (turn > 0) out = out.slice(0, turn);
+  for (const m of out.matchAll(GLUED_SEAM)) {
+    const end = (m.index ?? 0) + m[0].length;
+    if (end >= MIN_FIRST_SEGMENT) { out = out.slice(0, end); break; }
+  }
+  return out.trim();
+}
+
+/** Said when the model returns nothing usable twice in a row. */
+export const EMPTY_REPLY_FALLBACK = `Sorry, I lost you for a second. Can you say that again?`;
 
 export const RETRY_REMINDER = `Your last draft spoke as the sales rep. That is wrong. You are the BUYER. Reply again, in first person as the owner/buyer, reacting to what the rep just said. Do not offer, ship or give anything; ask questions or push back instead.`;
 
