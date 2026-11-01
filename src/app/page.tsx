@@ -6,7 +6,12 @@ import { NH_PERSONAS } from '@/lib/personas-nh';
 import SiteHeader from '@/components/site/SiteHeader';
 import SiteFooter from '@/components/site/SiteFooter';
 import { SAMPLE_INCENTIVES, getSampleIncentive, normalizeIncentiveGoal, INCENTIVE_OUTCOME_LABEL, INCENTIVE_TYPE_LABEL } from '@/lib/incentives';
-const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
+import { RE_PERSONAS, INS_PERSONAS } from '@/lib/personas/index';
+import { PUBLIC_DEMO_EXTRA_IDS } from '@/lib/demo-personas';
+import { incentivesAllowed, profileFor, skillLabels } from '@/lib/industry';
+// Same list the server allows for the free demo (ai-guard.ts).
+const DEMO_EXTRA = [...RE_PERSONAS, ...INS_PERSONAS].filter(p => PUBLIC_DEMO_EXTRA_IDS.includes(p.id));
+const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS, ...DEMO_EXTRA];
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 type Status = 'idle' | 'listening' | 'thinking' | 'speaking';
@@ -30,19 +35,27 @@ function speak(text: string, persona: Persona, onEnd: () => void) {
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
-  { id: 'grocery', label: '🛒 Grocery & Retail' },
-  { id: 'cstore', label: '⛽ C-Stores' },
-  { id: 'liquor', label: '🏪 Beer & Wine Shops' },
-  { id: 'onprem', label: '🍺 Bars & Restaurants' },
-  { id: 'internal', label: '📊 Internal & Management' },
-  { id: 'craft', label: '🏠 Craft & Specialty' },
-  { id: 'competitive', label: '🎯 Competitive & Win-Back' },
+  { id: 'beer', label: '🍺 Beer distribution' },
+  { id: 'real-estate', label: '🏡 Real estate' },
+  { id: 'insurance', label: '🛡️ Insurance' },
+  { id: 'sales', label: '💼 General sales' },
+  { id: 'hr', label: '📋 Managers & HR' },
 ];
 
 const TICKER_ITEMS = [
-  'New Account Pitch', 'Hostile Prospect', 'Annual Review Prep',
-  'Craft Brewery Taproom', 'Beer & Wine Shop Owner', 'Win-Back Campaign',
-  'Contract Renewal', 'Route Sales Rep',
+  'Bar & Restaurant Owner', 'Grocery Chain Buyer', 'Win-Back Campaign',
+  'Listing Appointment', 'Buyer Consultation', 'Renewal Rate Shock',
+  'Hostile Prospect', 'Annual Review', 'Exit Interview',
+];
+
+// Honest one-liners for the industries TrainField has scenarios for. No customer
+// counts or results: describe what is in the product, nothing more.
+const INDUSTRIES = [
+  { emoji: '🍺', name: 'Beer distribution', tag: 'Where we started', desc: 'Grocery, c-store, bar and restaurant buyers, win-backs and ride-alongs. The coach is set up to steer clear of tied-house trouble like free goods or paying for an account\'s ads.' },
+  { emoji: '🏡', name: 'Real estate', tag: 'Agents', desc: 'Listing appointments with commission pushback, expired and FSBO calls, buyer consultations and tough client moments. The coach and the AI clients are set up to stay fair-housing safe.' },
+  { emoji: '🛡️', name: 'Insurance', tag: 'Agents & service', desc: 'Renewal rate shock, claim disputes and benefits questions. The coach is set up never to suggest promising coverage or a claim outcome.' },
+  { emoji: '🛍️', name: 'Retail', tag: 'Store teams', desc: 'Hesitant shoppers, price-match requests, returns and browsers who are not ready to buy.' },
+  { emoji: '📋', name: 'Managers & HR', tag: 'People leaders', desc: 'Reviews, raise requests, team conflict and exit interviews, scored on listening, empathy, clarity, policy-safe language and next steps.' },
 ];
 
 type Analysis = {
@@ -59,13 +72,6 @@ type Analysis = {
   incentiveGoal?: unknown;
 };
 
-const SKILLS: { key: keyof Analysis; label: string }[] = [
-  { key: 'discovery', label: 'Discovery' },
-  { key: 'objectionHandling', label: 'Objection Handling' },
-  { key: 'valueArticulation', label: 'Value Articulation' },
-  { key: 'confidencePacing', label: 'Confidence & Pacing' },
-  { key: 'closingTechnique', label: 'Closing Technique' },
-];
 
 // Event-handler clock; kept outside the component so the React compiler lint does not treat it as render-time.
 function nowMs() { return Date.now(); }
@@ -88,7 +94,11 @@ export default function Home() {
   const [startedAt, setStartedAt] = useState(0);
   // Optional sample incentive the demo rep pitches toward (fictional programs).
   const [incentiveId, setIncentiveId] = useState('');
-  const incentive = getSampleIncentive(incentiveId);
+  // Sample incentives are beer distributor programs; other industries never see them.
+  const demoIndustry = profileFor(selectedPersona.id);
+  const showIncentives = incentivesAllowed(demoIndustry);
+  const incentive = showIncentives ? getSampleIncentive(incentiveId) : null;
+  const SKILLS = skillLabels(demoIndustry);
 
   const conversationRef = useRef<Message[]>([]);
   const speakingRef = useRef(false);
@@ -216,13 +226,12 @@ export default function Home() {
 
   const filteredPersonas = ALL_PERSONAS.filter(p => {
     if (categoryFilter === 'all') return true;
-    if (categoryFilter === 'grocery') return ['nh-grocery-buyer'].includes(p.id);
-    if (categoryFilter === 'cstore') return ['nh-convenience-buyer'].includes(p.id);
-    if (categoryFilter === 'liquor') return ['nh-liquor-store-owner'].includes(p.id);
-    if (categoryFilter === 'onprem') return ['nh-bar-owner', 'nh-restaurant-buyer'].includes(p.id);
-    if (categoryFilter === 'internal') return ['nh-district-manager', 'nh-route-rep'].includes(p.id);
-    if (categoryFilter === 'craft') return ['nh-craft-enthusiast-owner'].includes(p.id);
-    if (categoryFilter === 'competitive') return ['nh-lost-account-recovery'].includes(p.id);
+    const industry = profileFor(p.id);
+    if (categoryFilter === 'beer') return industry === 'beer-distribution';
+    if (categoryFilter === 'real-estate') return industry === 'real-estate';
+    if (categoryFilter === 'insurance') return industry === 'insurance';
+    if (categoryFilter === 'sales') return industry === 'b2b';
+    if (categoryFilter === 'hr') return industry === 'hr-management';
     return true;
   });
 
@@ -236,20 +245,20 @@ export default function Home() {
         <div className="hero-left">
           <div className="eyebrow">
             <div className="eyebrow-dot" />
-            For beer distribution sales reps
+            Built for beer distribution reps · now for real estate, insurance, retail and managers too
           </div>
           <h1 className="font-display" style={{ fontSize: 'clamp(72px, 8vw, 108px)', lineHeight: 0.92, letterSpacing: '0.01em', color: 'var(--cream)', marginBottom: 12 }}>
             Train<span style={{ color: 'var(--amber)', display: 'block' }}>Before<br />You Pitch.</span>
           </h1>
           <p className="tagline" style={{ fontSize: 17, fontWeight: 300, lineHeight: 1.6, color: 'rgba(245,237,216,0.7)', maxWidth: 440, margin: '22px 0 40px' }}>
-            Rehearse the tough buyer conversation out loud with an AI buyer who pushes back, then get a scored debrief on what to fix before the real call.
+            Rehearse the tough conversation out loud with an AI buyer, client or employee who pushes back, then get a scored debrief on what to fix before the real one.
           </p>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <a href="#demo" className="btn-primary">Try the free demo</a>
             <a href="/pricing" className="btn-ghost">See plans</a>
           </div>
           <div className="hero-stats">
-            {[[String(ALL_PERSONAS.length), 'Buyer scenarios'], ['5', 'Skills scored'], ['$0', 'Demo, no signup']].map(([v, l]) => (
+            {[[String(ALL_PERSONAS.length), 'Demo scenarios'], ['5', 'Skills scored'], ['$0', 'Demo, no signup']].map(([v, l]) => (
               <div key={l}>
                 <div className="stat-num">{v}</div>
                 <div className="stat-label">{l}</div>
@@ -315,9 +324,9 @@ export default function Home() {
         <h2 className="section-title">Three steps to <em>better</em><br />conversations</h2>
         <div className="steps-grid">
           {[
-            { num: '01', icon: '📋', title: 'Pick a buyer', desc: 'Grocery chain buyers, c-store managers, bar owners, beer directors, win-back accounts and your own district manager.' },
-            { num: '02', icon: '🎤', title: 'Talk it out', desc: 'Speak into your mic (or type). The AI buyer answers in character with real pushback on price, space and support.' },
-            { num: '03', icon: '⚡', title: 'Get scored', desc: 'End the call for a 0–100 score across discovery, objections, value, pacing and closing, plus specific tips and a next drill.' },
+            { num: '01', icon: '📋', title: 'Pick a scenario', desc: 'Beer buyers and bar owners, real estate and insurance clients, retail customers, or a tough conversation with someone on your team.' },
+            { num: '02', icon: '🎤', title: 'Talk it out', desc: 'Speak into your mic (or type). The AI character answers in role with real pushback on price, trust and timing.' },
+            { num: '03', icon: '⚡', title: 'Get scored', desc: 'End the call for a 0–100 score on five skills (discovery, objections, value, pacing and closing for sales; listening, empathy, clarity, policy-safe language and next steps for managers), plus tips and a next drill.' },
           ].map(({ num, icon, title, desc }) => (
             <div key={num} className="step">
               <div className="step-num">{num}</div>
@@ -329,16 +338,35 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── WHO IT'S FOR ── */}
+      <section id="who" className="section" aria-labelledby="who-title">
+        <div className="section-label">Who it&apos;s for</div>
+        <h2 id="who-title" className="section-title">Five industries.<br /><em>One way to practice.</em></h2>
+        <div className="personas-grid">
+          {INDUSTRIES.map(({ emoji, name, tag, desc }) => (
+            <div key={name} className="persona-card">
+              <div className="persona-emoji" aria-hidden="true">{emoji}</div>
+              <div className="persona-name">{name}</div>
+              <div className="persona-desc">{desc}</div>
+              <div className="persona-tag">{tag}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: 14, fontWeight: 300, color: 'rgba(245,237,216,0.55)', marginTop: 24, maxWidth: 640, lineHeight: 1.6 }}>
+          The free demo below has beer, real estate, insurance, general sales and manager scenarios. The full libraries for each industry, including retail, come with a plan.
+        </p>
+      </section>
+
       {/* ── PERSONAS ── */}
       <section className="personas-section">
         <div className="section-label">Who you&apos;ll practice with</div>
         <h2 className="section-title">Real situations.<br /><em>Real pushback.</em></h2>
         <div className="personas-grid">
           {[
-            { emoji: '🛒', name: 'Grocery Chain Buyer', desc: "Twelve feet of cold space and a hundred distributors pitching. Controls slotting and promo calendars.", tag: 'Off-Premise' },
-            { emoji: '⛽', name: 'C-Store Account Manager', desc: 'Four cooler doors, a tight delivery window, and zero patience for slow movers.', tag: 'C-Store' },
-            { emoji: '🎯', name: 'Win-Back: Lost Account', desc: 'Dropped your brand three months ago and has a competing offer on the table.', tag: 'Win-Back' },
-            { emoji: '📊', name: 'District Sales Manager', desc: 'Ride-along debrief on volume, premium mix and fill-rate complaints.', tag: 'Internal' },
+            { emoji: '🛒', name: 'Grocery Chain Buyer', desc: "Twelve feet of cold space and a hundred distributors pitching. Controls slotting and promo calendars.", tag: 'Beer · Off-Premise' },
+            { emoji: '🎯', name: 'Win-Back: Lost Account', desc: 'Dropped your brand three months ago and has a competing offer on the table.', tag: 'Beer · Win-Back' },
+            { emoji: '🪧', name: 'Listing Appointment', desc: 'Likes your marketing plan, but another agent will list it for less. Why should they pay you more?', tag: 'Real estate' },
+            { emoji: '📈', name: 'Renewal Rate Shock', desc: 'Clean record, big renewal increase, two competing quotes in hand. Calling to cancel.', tag: 'Insurance' },
           ].map(({ emoji, name, desc, tag }) => (
             <div key={name} className="persona-card">
               <div className="persona-emoji">{emoji}</div>
@@ -356,12 +384,12 @@ export default function Home() {
           <div className="section-label">Why it works</div>
           <h2 className="section-title">Practice it <em>out loud</em><br />before the real call</h2>
           <p style={{ fontSize: 16, fontWeight: 300, lineHeight: 1.75, color: 'rgba(245,237,216,0.55)', maxWidth: 440, marginBottom: 36 }}>
-            Reps don&apos;t send emails in the field. They talk. TrainField trains the part that matters in a buyer meeting: what you say, how you handle the objection, and whether you ask for the order.
+            Sales calls, client meetings and hard team conversations happen out loud. TrainField trains the part that matters: what you say, how you handle the pushback, and whether you land a clear next step.
           </p>
           <ul className="why-features">
             {[
-              { icon: '🎤', strong: 'Voice-first practice', text: 'Talk out loud, like you would with a real account. Typing works too.' },
-              { icon: '🤖', strong: 'AI that pushes back', text: 'Not a script. Buyers object, stall and ask what you will do for them.' },
+              { icon: '🎤', strong: 'Voice-first practice', text: 'Talk out loud, like you would in the real conversation. Typing works too.' },
+              { icon: '🤖', strong: 'AI that pushes back', text: 'Not a script. Characters object, stall and ask what you will do for them.' },
               { icon: '🔒', strong: 'Clear about your data', text: 'The demo saves nothing. Your browser turns speech into text (Chrome uses Google for this), and the text goes to our AI provider to reply and score. See Privacy.' },
             ].map(({ icon, strong, text }) => (
               <li key={strong}>
@@ -405,10 +433,10 @@ export default function Home() {
         <span id="start" />
         <div className="section-label">Free demo · no account</div>
         <h2 className="section-title" style={{ fontSize: 'clamp(40px, 4vw, 64px)', marginBottom: 16 }}>
-          Pick a buyer.<br />Talk. Get your score.
+          Pick a scenario.<br />Talk. Get your score.
         </h2>
         <p style={{ fontSize: 15, fontWeight: 300, color: 'rgba(245,237,216,0.55)', marginBottom: 40, maxWidth: 560, lineHeight: 1.6 }}>
-          Choose a scenario, make your pitch with your mic or keyboard, then end the call for a scored debrief. Demo calls aren&apos;t saved.
+          Choose a scenario, talk it through with your mic or keyboard, then end the call for a scored debrief. Demo calls aren&apos;t saved.
         </p>
 
         {/* Category filter */}
@@ -442,8 +470,8 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Optional sample incentive */}
-        <div className="demo-incentives" style={{ marginTop: 28 }}>
+        {/* Optional sample incentive (beer scenarios only) */}
+        {showIncentives && <div className="demo-incentives" style={{ marginTop: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--amber)' }}>Pitch toward an incentive (optional)</span>
             <span className="sample-badge" style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 999, background: '#FDF3DC', color: '#92400e', border: '1px dashed rgba(212,134,10,0.6)' }}>Sample programs</span>
@@ -471,7 +499,7 @@ export default function Home() {
               <strong style={{ color: 'var(--cream)' }}>{INCENTIVE_TYPE_LABEL[incentive.type]} · {incentive.period}.</strong> Your ask: {incentive.ask}. Target {incentive.target.toLowerCase()}; payout {incentive.payout.toLowerCase()}. <em style={{ color: 'rgba(245,237,216,0.45)' }}>Fictional sample program.</em>
             </p>
           )}
-        </div>
+        </div>}
 
         <button
           onClick={startConversation}
@@ -547,7 +575,7 @@ export default function Home() {
                     <button type="submit" className="btn-primary" disabled={!typed.trim() || status === 'thinking' || atTurnLimit}>Send</button>
                   </form>
                   <button className="btn-end" onClick={endAndScore} disabled={userTurns === 0 || analyzing || status === 'thinking'}>
-                    {analyzing ? 'Scoring your call…' : userTurns === 0 ? 'Make your pitch to unlock your score' : 'End call & get my score'}
+                    {analyzing ? 'Scoring your call…' : userTurns === 0 ? 'Say something to unlock your score' : 'End call & get my score'}
                   </button>
                   {analyzeError && <div className="conv-error">⚠ {analyzeError}</div>}
                 </div>

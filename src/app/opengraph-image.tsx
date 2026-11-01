@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 // Social preview card (also used for Twitter/X via twitter-image below).
-export const alt = 'TrainField AI: Train before you pitch. Voice roleplay for beer distribution sales reps.';
+export const alt = 'TrainField AI: Train before you pitch. Voice roleplay practice for beer distribution, real estate, insurance, retail and managers.';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -16,7 +16,8 @@ export default function OpengraphImage() {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ color: '#F5EDD8', fontSize: 92, fontWeight: 800, lineHeight: 1.0 }}>Train before</div>
           <div style={{ color: '#D4860A', fontSize: 92, fontWeight: 800, lineHeight: 1.0 }}>you pitch.</div>
-          <div style={{ color: 'rgba(245,237,216,0.8)', fontSize: 32, marginTop: 28, maxWidth: 940 }}>Pitch an AI buyer out loud, then get a scored debrief. Built for beer distribution sales reps.</div>
+          <div style={{ color: 'rgba(245,237,216,0.8)', fontSize: 32, marginTop: 28, maxWidth: 940 }}>Talk it out with an AI buyer, client or employee, then get a scored debrief.</div>
+          <div style={{ color: '#FAC765', fontSize: 26, marginTop: 18, maxWidth: 1000 }}>Beer distribution · Real estate · Insurance · Retail · Managers &amp; HR</div>
         </div>
         <div style={{ display: 'flex', color: '#FAC765', fontSize: 26 }}>Free demo, no account needed · training.goodbotai.tech</div>
       </div>

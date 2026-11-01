@@ -6,12 +6,13 @@ import { groqChat } from '@/lib/server/groq-chat';
 import { getSampleIncentive, type SampleIncentive } from '@/lib/incentives';
 import { createAdminClient } from '@/lib/server/supabase-admin';
 import { buildScoringPrompt, parseAnalysis, type Analysis } from '@/lib/server/scoring';
-import { cleanTurns, parsePracticeOptions, practiceScope, resolvePracticePersona } from '@/lib/server/practice';
+import { cleanTurns, incentiveError, loadTeamCategory, parsePracticeOptions, practiceProfile, practiceScope, resolvePracticePersona } from '@/lib/server/practice';
+import { incentivesAllowed, profileFor, type IndustryProfile } from '@/lib/industry';
 import { verifyTurn, type TurnMessage } from '@/lib/server/turn-token';
 
 const MINUTE = 60_000;
 
-async function score(apiKey: string, prompt: string, incentive: SampleIncentive | null): Promise<Analysis | { error: string }> {
+async function score(apiKey: string, prompt: string, incentive: SampleIncentive | null, profile: IndustryProfile): Promise<Analysis | { error: string }> {
   const result = await groqChat(apiKey, {
     messages: [
       { role: 'system', content: prompt },
@@ -22,7 +23,7 @@ async function score(apiKey: string, prompt: string, incentive: SampleIncentive 
     json: true,
   });
   if (!result.ok) return { error: 'The AI service had a problem. Try again.' };
-  return parseAnalysis(result.content, incentive) ?? { error: 'Could not read the score. Try again.' };
+  return parseAnalysis(result.content, incentive, profile) ?? { error: 'Could not read the score. Try again.' };
 }
 
 type SessionRow = {
@@ -76,6 +77,9 @@ async function signedInAnalyze(userId: string, body: Record<string, unknown>) {
   if ('error' in opts) return NextResponse.json({ error: opts.error }, { status: 400 });
   const persona = await resolvePracticePersona(sb, teamId, body.personaId);
   if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+  const industry = practiceProfile(persona, await loadTeamCategory(sb, userId, teamId));
+  const badIncentive = incentiveError(opts, industry);
+  if (badIncentive) return NextResponse.json({ error: badIncentive }, { status: 400 });
 
   const transcript: TurnMessage[] | null = cleanTurns(body.transcript, { maxMessages: 81, maxCharsEach: 4000, maxCharsTotal: 40000 });
   if (!transcript) return NextResponse.json({ error: 'Transcript is empty or too long' }, { status: 400 });
@@ -112,7 +116,8 @@ async function signedInAnalyze(userId: string, body: Record<string, unknown>) {
     incentive: opts.incentive,
     durationSeconds,
     transcript,
-  }), opts.incentive);
+    profile: industry,
+  }), opts.incentive, industry);
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
 
   // Link to a store-owner account only if the caller owns it; otherwise drop it.
@@ -171,6 +176,8 @@ export async function POST(req: NextRequest) {
     const transcript = cleanMessages(body.transcript, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
     const incentive = body.incentiveId ? getSampleIncentive(body.incentiveId) : null;
     if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
+    const profile = profileFor(persona.id);
+    if (incentive && !incentivesAllowed(profile)) return NextResponse.json({ error: 'Sample incentives are only for beer distribution scenarios' }, { status: 400 });
     const durationSeconds = Number.isFinite(body.durationSeconds) ? Math.max(0, Math.floor(body.durationSeconds)) : 0;
 
     if (!transcript) {
@@ -185,7 +192,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    const result = await score(apiKey, buildScoringPrompt({ scenarioName: persona.name, incentive, durationSeconds, transcript }), incentive);
+    const result = await score(apiKey, buildScoringPrompt({ scenarioName: persona.name, incentive, durationSeconds, transcript, profile }), incentive, profile);
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json({ analysis: result });
   } catch (e: unknown) {

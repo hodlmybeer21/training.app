@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { PERSONAS } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
+import { PUBLIC_DEMO_EXTRA_IDS } from '@/lib/demo-personas';
+import { PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
-const PUBLIC_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
+// The free demo (no account): the generic and beer personas, plus a few from other
+// industries so visitors can try real estate and insurance without signing up.
+const EXTRA = Object.values(PERSONA_BY_CATEGORY).flat().filter((p: { id: string }) => PUBLIC_DEMO_EXTRA_IDS.includes(p.id));
+const PUBLIC_PERSONAS = [...PERSONAS, ...NH_PERSONAS, ...EXTRA.filter((p, i, a) => a.findIndex(q => q.id === p.id) === i)];
 
 export function publicPersona(id: unknown) {
   if (typeof id !== 'string') return null;

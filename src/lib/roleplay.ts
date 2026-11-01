@@ -7,18 +7,17 @@
 // versions addressed the rep ("do not concede on price", "make a compelling case"),
 // which pulled the model into speaking as the rep.
 
+import { BEER, BEER_STAGE_CONTEXT, scorecardFor, stageContextFor, stageOpeningFor, type IndustryProfile } from '@/lib/industry';
+
 export type RoleplaySpeaker = 'user' | 'assistant';
 export const SPEAKER_LABEL: Record<RoleplaySpeaker, string> = {
   user: 'SALES REP (trainee)',
   assistant: 'BUYER (AI roleplay)',
 };
 
-export const STAGE_CONTEXT: Record<string, string> = {
-  'initial-pitch': `\n[DEAL STAGE: INITIAL PITCH] You have not heard the rep's pitch yet. You are curious but guarded and deciding whether they are worth your time. Make them earn credibility. Do not volunteer your needs; answer their questions only if they ask good ones.`,
-  'proposal': `\n[DEAL STAGE: PROPOSAL] You have seen the rep's proposal and pricing. You are weighing fit and value against cost. Raise specific objections about price, terms and competing options, and ask the rep to justify the switch.`,
-  'negotiation': `\n[DEAL STAGE: NEGOTIATION] You are actively negotiating. Push the rep hard for concessions on price, delivery, terms or exclusivity, and use pressure tactics. Only give ground when the rep trades something real for it.`,
-  'renewal': `\n[DEAL STAGE: RENEWAL] The rep wants to keep or renew your business. You are not fully happy: bring up past problems (service, out-of-stocks, slow sellers) and make it clear you are open to other options. Do not assume you will stay.`,
-};
+// Beer stage notes (kept as STAGE_CONTEXT for callers and tests); other industries
+// get their own notes from stageContextFor() in industry.ts.
+export const STAGE_CONTEXT: Record<string, string> = BEER_STAGE_CONTEXT;
 
 export const DIFFICULTY_CONTEXT: Record<string, string> = {
   'easy': `\n[DIFFICULTY: EASY] You are warm and receptive and want this to work. Your objections are mild. Agree to a next step if the rep lays out a clear path.`,
@@ -48,14 +47,22 @@ export const GENERIC_ROLE_LOCK = `\n\n[ROLE LOCK - FOLLOW STRICTLY] You play ONL
 
 export const BUYER_ROLE_LOCK = `\n[YOU ARE THE BUYER, NOT THE SELLER] You are the account owner or buyer. The trainee is the distributor or sales rep pitching YOU. You never sell, ship, deliver, stock or give away product, and you never offer prices, discounts, deals, free or complimentary kegs or cases, tap handles, POS, staff training or promo support: those are the rep's to offer. You may ASK for them, demand them, or turn them down. Talk about YOUR business (your taps, your shelves, your customers, your margins) in the first person.`;
 
-/** Server-side lock appended to whatever system prompt the scenario uses. */
-export function roleLock(personaId: unknown): string {
-  return GENERIC_ROLE_LOCK + (isBuyerPersona(personaId) ? BUYER_ROLE_LOCK : '');
+// Buyer lock for non-beer sales calls (custom retail, real estate or insurance
+// personas, and the generic B2B personas): same idea, no kegs or taps.
+export const GENERIC_BUYER_LOCK = `\n[YOU ARE THE CUSTOMER, NOT THE SELLER] You are the customer, client or prospect. The trainee is the one selling or advising. You never sell, quote prices, offer discounts or make the trainee's pitch for them. You may ask for things, push back, or turn them down. Talk about YOUR situation in the first person.`;
+
+/**
+ * Server-side lock appended to whatever system prompt the scenario uses. The keg
+ * and tap wording is only for beer calls; manager/HR calls get the generic lock.
+ */
+export function roleLock(personaId: unknown, profile: IndustryProfile = BEER): string {
+  if (!isBuyerPersona(personaId) || profile === 'hr-management') return GENERIC_ROLE_LOCK;
+  return GENERIC_ROLE_LOCK + (profile === BEER ? BUYER_ROLE_LOCK : GENERIC_BUYER_LOCK);
 }
 
-/** Builds the scenario prompt the practice page sends (persona + stage + difficulty + extras). */
-export function buildScenarioPrompt(base: string, dealStage: string, difficulty: string, extra = ''): string {
-  return base + (STAGE_CONTEXT[dealStage] || '') + (DIFFICULTY_CONTEXT[difficulty] || '') + extra;
+/** Builds the scenario prompt (persona + stage + difficulty + extras) for the call's industry. */
+export function buildScenarioPrompt(base: string, dealStage: string, difficulty: string, extra = '', profile: IndustryProfile = BEER): string {
+  return base + stageContextFor(profile, dealStage) + (DIFFICULTY_CONTEXT[difficulty] || '') + extra;
 }
 
 // Phrases a buyer would not say but a rep would. Kept specific to avoid flagging
@@ -92,11 +99,13 @@ export const RETRY_REMINDER = `Your last draft spoke as the sales rep. That is w
 
 export const IN_ROLE_FALLBACK = `Hold on, you're the one pitching me here. What exactly are you offering, and why should I care?`;
 
-/** Readable transcript for scoring, with unambiguous speaker labels. */
-export function formatTranscript(turns: { role: string; content: string }[]): string {
+/** Readable transcript for scoring, with unambiguous speaker labels for the call's industry. */
+export function formatTranscript(turns: { role: string; content: string }[], profile: IndustryProfile = BEER): string {
+  const card = scorecardFor(profile);
+  const label: Record<RoleplaySpeaker, string> = { user: card.traineeLabel, assistant: card.otherLabel };
   return turns
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => `${SPEAKER_LABEL[m.role as RoleplaySpeaker]}: ${m.content}`)
+    .map(m => `${label[m.role as RoleplaySpeaker]}: ${m.content}`)
     .join('\n');
 }
 
@@ -116,13 +125,7 @@ export function isDifficulty(v: unknown): v is DifficultyId {
 }
 
 // What the character says first at each deal stage (the persona's own opening line
-// for the initial pitch). Shared so the server can check the opening it is sent.
-const STAGE_OPENINGS: Record<string, string> = {
-  'proposal': `Thanks for sending that over. I've had a chance to look it over and I have some questions — some of the pricing is higher than what I expected. Can we walk through it?`,
-  'negotiation': `Okay, I've got leadership involved and they have concerns. If we're going to move forward, we need to talk about what you can actually give us here. What's flex?`,
-  'renewal': `I appreciate you reaching out about renewing, but I'd be lying if I said everything was great this year. We need to talk about what's changed.`,
-};
-
-export function openingLineFor(personaOpening: string, dealStage: string): string {
-  return STAGE_OPENINGS[dealStage] || personaOpening;
+// for the first stage). Shared so the server can check the opening it is sent.
+export function openingLineFor(personaOpening: string, dealStage: string, profile: IndustryProfile = BEER): string {
+  return stageOpeningFor(profile, dealStage) || personaOpening;
 }

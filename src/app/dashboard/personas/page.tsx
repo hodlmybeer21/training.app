@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { PERSONAS } from '@/lib/personas';
 import { NH_PERSONAS } from '@/lib/personas-nh';
+import { RE_PERSONAS, INS_PERSONAS, RETAIL_PERSONAS, HR_PERSONAS } from '@/lib/personas/index';
 import DashboardNav from '@/components/DashboardNav';
 import { createClient } from '@/utils/supabase/client';
 import { User } from '@supabase/supabase-js';
 
-const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS];
+const ALL_PERSONAS = [...PERSONAS, ...NH_PERSONAS, ...RE_PERSONAS, ...INS_PERSONAS, ...RETAIL_PERSONAS, ...HR_PERSONAS];
 
 type PersonaCardProps = {
   persona: typeof ALL_PERSONAS[0];
@@ -110,6 +111,10 @@ export default function PersonasPage() {
     { label: 'NH Off-Premise', color: '#3b82f6', personas: NH_PERSONAS.filter(p => ['nh-grocery-buyer', 'nh-convenience-buyer', 'nh-liquor-store-owner'].includes(p.id)) },
     { label: 'NH On-Premise', color: '#10b981', personas: NH_PERSONAS.filter(p => ['nh-bar-owner', 'nh-restaurant-buyer'].includes(p.id)) },
     { label: 'NH Internal & Competitive', color: '#ef4444', personas: NH_PERSONAS.filter(p => ['nh-district-manager', 'nh-route-rep', 'nh-lost-account-recovery', 'nh-craft-enthusiast-owner'].includes(p.id)) },
+    { label: 'Real Estate', color: '#0d9488', personas: RE_PERSONAS },
+    { label: 'Insurance', color: '#ef4444', personas: INS_PERSONAS },
+    { label: 'Retail', color: '#8b5cf6', personas: RETAIL_PERSONAS },
+    { label: 'Managers & HR', color: '#6366f1', personas: HR_PERSONAS },
   ];
 
   return (

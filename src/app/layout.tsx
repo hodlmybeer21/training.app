@@ -3,10 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "TrainField AI: Voice roleplay practice for beer sales reps",
+    default: "TrainField AI: Voice roleplay practice for sales and team conversations",
     template: "%s · TrainField AI",
   },
-  description: "Rehearse tough buyer conversations out loud with an AI buyer, then get a scored debrief. Free demo, no account needed.",
+  description: "Rehearse tough conversations out loud with an AI buyer, client or employee, then get a scored debrief. Built for beer distribution reps, now for real estate, insurance, retail and managers. Free demo, no account needed.",
   metadataBase: new URL("https://training.goodbotai.tech"),
   alternates: { canonical: "./" },
   applicationName: "TrainField AI",
@@ -14,13 +14,13 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "TrainField AI",
     title: "TrainField AI: Train before you pitch",
-    description: "Voice roleplay for beer distribution sales reps. Pitch an AI buyer out loud, then get a scored debrief. Free demo, no account needed.",
+    description: "Voice roleplay practice for beer distribution, real estate, insurance, retail and manager conversations. Talk it out with an AI character, then get a scored debrief. Free demo, no account needed.",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: "TrainField AI: Train before you pitch",
-    description: "Voice roleplay for beer distribution sales reps. Pitch an AI buyer out loud, then get a scored debrief.",
+    description: "Voice roleplay practice for beer distribution, real estate, insurance, retail and manager conversations. Talk it out, then get a scored debrief.",
   },
 };
 

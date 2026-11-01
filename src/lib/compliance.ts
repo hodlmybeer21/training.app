@@ -72,3 +72,36 @@ export function sanitizeCoachingList(items: string[], fallback?: string): { item
   if (removed > 0 && fallback && !kept.includes(fallback)) kept.push(fallback);
   return { items: kept, removed };
 }
+
+// ── Real estate: fair housing ──────────────────────────────────────────────────
+// Safety net for real estate debriefs: drop a coaching line that steers or sorts
+// clients or neighborhoods by a protected class (Fair Housing Act, 42 U.S.C. 3604,
+// and state laws that add classes). A line that warns against it is kept.
+const STEERING_PATTERNS: RegExp[] = [
+  /\b(?:people|families|folks|neighbou?rs|buyers|residents|crowd)\s+like\s+(?:you|yours|them|us|your\s+family)\b/i,
+  /\b(?:race|racial\w*|ethnic\w*|religio\w*|national\s+origin|immigrants?|disabilit\w*|handicap\w*|familial\s+status|demographic\w*)\b/i,
+  /\b(?:safe|good|nice|right|best|better)\s+(?:neighbou?rhoods?|areas?|parts?\s+of\s+town|communit(?:y|ies))\s+for\s+(?:you|your\s+(?:family|kids)|families|kids|people)\b/i,
+  /\b(?:who|the\s+type\s+of\s+people\s+who|what\s+kind\s+of\s+people)\s+(?:lives?|live)\s+(?:there|in\s+(?:the|that)\s+(?:area|neighbou?rhood))\b/i,
+  /\bsteer\w*\b/i,
+];
+const FAIR_HOUSING_NEGATION = new RegExp(NEGATION_BEFORE.source.replace('rather\\s+than', 'rather\\s+than|redirect\\w*|refer\\w*|fair[- ]housing|neutral|regardless\\s+of|based\\s+on\\s+anything\\s+but'), 'i');
+
+/** True when a real estate coaching line steers on, or sorts by, a protected class. */
+export function recommendsSteering(text: string): boolean {
+  for (const re of STEERING_PATTERNS) {
+    const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    for (const m of text.matchAll(g)) {
+      const before = text.slice(Math.max(0, (m.index ?? 0) - 60), m.index ?? 0);
+      if (!FAIR_HOUSING_NEGATION.test(before)) return true;
+    }
+  }
+  return false;
+}
+
+/** Like sanitizeCoachingList, with any "is this line unsafe?" check. */
+export function filterCoachingList(items: string[], unsafe: (t: string) => boolean, fallback?: string): { items: string[]; removed: number } {
+  const kept = items.filter(t => !unsafe(t));
+  const removed = items.length - kept.length;
+  if (removed > 0 && fallback && !kept.includes(fallback)) kept.push(fallback);
+  return { items: kept, removed };
+}

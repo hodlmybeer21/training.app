@@ -8,13 +8,14 @@ import { withRoleLock, roleplayReply } from '@/lib/server/roleplay-reply';
 import { createAdminClient } from '@/lib/server/supabase-admin';
 import {
   buildPracticeSystemPrompt, cleanTurns, loadGoalContext, parsePracticeOptions,
-  practiceOpeningLine, practiceScope, resolvePracticePersona,
+  incentiveError, loadTeamCategory, practiceOpeningLine, practiceProfile, practiceScope, resolvePracticePersona,
 } from '@/lib/server/practice';
+import { incentivesAllowed, profileFor, type IndustryProfile } from '@/lib/industry';
 import { signTurn, verifyTurn, type TurnMessage, type TurnScope } from '@/lib/server/turn-token';
 
 const MINUTE = 60_000;
 
-type Prepared = { messages: ChatMessage[]; personaId: string; turns?: TurnMessage[]; scope?: TurnScope } | NextResponse;
+type Prepared = { messages: ChatMessage[]; personaId: string; profile: IndustryProfile; turns?: TurnMessage[]; scope?: TurnScope } | NextResponse;
 
 /**
  * Signed-in practice. The client sends ids (persona, deal stage, difficulty, sample
@@ -31,6 +32,9 @@ async function prepareSignedIn(userId: string, body: Record<string, unknown>): P
   if ('error' in opts) return NextResponse.json({ error: opts.error }, { status: 400 });
   const persona = await resolvePracticePersona(sb, teamId, body.personaId);
   if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+  const industry = practiceProfile(persona, await loadTeamCategory(sb, userId, teamId));
+  const badIncentive = incentiveError(opts, industry);
+  if (badIncentive) return NextResponse.json({ error: badIncentive }, { status: 400 });
 
   // Only user/assistant turns are accepted; a client-sent system message is rejected.
   const turns = cleanTurns(body.messages, { maxMessages: 80, maxCharsEach: 4000, maxCharsTotal: 40000 });
@@ -40,14 +44,14 @@ async function prepareSignedIn(userId: string, body: Record<string, unknown>): P
 
   const scope = practiceScope(userId, persona, opts);
   const history = turns.slice(0, -1);
-  const opening = practiceOpeningLine(persona, opts);
+  const opening = practiceOpeningLine(persona, opts, industry);
   const freshCall = history.length === 1 && history[0].role === 'assistant' && history[0].content === opening;
   if (!freshCall && !verifyTurn(body.turnToken, scope, history)) {
     return NextResponse.json({ error: 'This call could not be verified. Start a new call.', code: 'unverified_conversation' }, { status: 409 });
   }
 
-  const system = buildPracticeSystemPrompt(persona, opts, await loadGoalContext(sb, teamId));
-  return { messages: withRoleLock([{ role: 'system', content: system }, ...turns], persona.id), personaId: persona.id, turns, scope };
+  const system = buildPracticeSystemPrompt(persona, opts, await loadGoalContext(sb, teamId), industry);
+  return { messages: withRoleLock([{ role: 'system', content: system }, ...turns], persona.id, industry), personaId: persona.id, profile: industry, turns, scope };
 }
 
 export async function POST(req: NextRequest) {
@@ -78,12 +82,14 @@ export async function POST(req: NextRequest) {
       const persona = publicPersona(body.personaId);
       if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
       // Optional sample incentive: the buyer prompt add-on comes from server-side data only.
+      const profile = profileFor(persona.id);
       const incentive = body.incentiveId ? getSampleIncentive(body.incentiveId) : null;
       if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
+      if (incentive && !incentivesAllowed(profile)) return NextResponse.json({ error: 'Sample incentives are only for beer distribution scenarios' }, { status: 400 });
       const turns = cleanMessages(body.messages, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
       const system = persona.systemPrompt + (incentive ? incentiveBuyerPrompt(incentive) : '');
       if (!turns) return NextResponse.json({ error: 'Conversation is empty or too long' }, { status: 400 });
-      prepared = { messages: withRoleLock([{ role: 'system', content: system }, ...turns], persona.id), personaId: persona.id };
+      prepared = { messages: withRoleLock([{ role: 'system', content: system }, ...turns], persona.id, profile), personaId: persona.id, profile };
       maxTokens = 300;
     }
 
@@ -94,7 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    const result = await roleplayReply(apiKey, prepared.messages, prepared.personaId, maxTokens, groqChat);
+    const result = await roleplayReply(apiKey, prepared.messages, prepared.personaId, maxTokens, groqChat, prepared.profile);
     if (!result.ok) {
       return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
     }
