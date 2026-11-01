@@ -2,19 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getSessionUser } from '@/lib/server/auth';
 import { deactivateGoal } from '@/lib/server/goals';
-
-function buildGoalContext(goals: any[]): string {
-  if (!goals || goals.length === 0) return '';
-  const lines = goals.map((g) => {
-    let line = `- ${g.goal_text}`;
-    if (g.product_sku) line += ` | SKU focus: ${g.product_sku}`;
-    if (g.target_cases) line += ` | Target: ${g.target_cases} cases`;
-    if (g.target_pods) line += ` | Target: ${g.target_pods} PODs`;
-    if (g.target_date) line += ` | Due: ${g.target_date}`;
-    return line;
-  });
-  return `ACTIVE SALES TARGETS (from your manager):\n${lines.join('\n')}`;
-}
+import { buildGoalContext } from '@/lib/goal-context';
 
 // GET /api/goals — fetch active goals for a team (rep) or managed team (manager)
 export async function GET(req: NextRequest) {

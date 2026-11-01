@@ -7,6 +7,7 @@ import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 import DashboardNav from '@/components/DashboardNav';
 import GoalsPanel from './GoalsPanel';
 import PersonaCreator from './PersonaCreator';
+import MembersPanel from './MembersPanel';
 
 const SKILL_KEYS = ['discovery', 'objection_handling', 'value_articulation', 'confidence_pacing', 'closing_technique'] as const;
 const SKILL_SHORT: Record<string, string> = {
@@ -211,7 +212,7 @@ export default function ManagerPage() {
   const [user, setUser] = useState<User | null>(null);
   const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<'team' | 'goals' | 'personas'>('team');
+  const [view, setView] = useState<'team' | 'members' | 'goals' | 'personas'>('team');
   const supabase = createClient();
 
   useEffect(() => {
@@ -246,6 +247,14 @@ export default function ManagerPage() {
               <span aria-hidden="true">👥 </span>Team
             </button>
             <button
+              onClick={() => setView('members')}
+              aria-pressed={view === 'members'}
+              type="button"
+              style={{ background: view === 'members' ? '#D4860A' : 'transparent', color: view === 'members' ? '#fff' : '#6b7280', border: `1.5px solid ${view === 'members' ? '#D4860A' : '#e5e7eb'}`, borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              <span aria-hidden="true">➕ </span>Members
+            </button>
+            <button
               onClick={() => setView('personas')}
               aria-pressed={view === 'personas'}
               type="button"
@@ -264,7 +273,11 @@ export default function ManagerPage() {
           </div>
         </header>
 
-        {view === 'personas' ? (
+        {view === 'members' ? (
+          <div className="manager-pad" style={{ padding: 28 }}>
+            <MembersPanel />
+          </div>
+        ) : view === 'personas' ? (
           <div className="manager-pad" style={{ padding: 28 }}>
             <PersonaCreator />
           </div>

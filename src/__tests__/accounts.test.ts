@@ -138,17 +138,5 @@ describe('accounts API', () => {
   });
 });
 
-describe('sessions account link', () => {
-  const ACCT = 'ffffffff-0000-4000-8000-000000000001';
-  it('saves account_id only when the caller owns the account', async () => {
-    db.accounts = [{ id: ACCT, rep_id: REP_A, team_id: TEAM, name: 'Mine', persona_id: 'nh-bar-owner' }];
-    const { POST } = await import('@/app/api/sessions/route');
-
-    as(REP_A);
-    expect((await POST(req({ scenario_name: 's', scores: { overallScore: 80 }, account_id: ACCT }) as any)).status).toBe(200);
-    as(REP_B);
-    expect((await POST(req({ scenario_name: 's', scores: { overallScore: 50 }, account_id: ACCT }) as any)).status).toBe(200);
-
-    expect(db.sessions.map((s) => [s.user_id, s.account_id])).toEqual([[REP_A, ACCT], [REP_B, null]]);
-  });
-});
+// Session/account linking moved to /api/analyze (scores are saved server-side);
+// see 'links the session to a store-owner account' in walk-fixes.test.ts.

@@ -16,6 +16,7 @@ type Profile = {
 
 export default function AdminPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string; category: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -46,6 +47,7 @@ export default function AdminPage() {
       .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then(d => {
         if (d.profiles) setProfiles(d.profiles);
+        if (Array.isArray(d.teams)) setTeams(d.teams);
         setLoadError(false);
         setLoading(false);
       })
@@ -120,6 +122,25 @@ export default function AdminPage() {
     refresh();
   }
 
+  async function handleAssignTeam(profile: Profile, value: string) {
+    setMessage(null);
+    let payload: Record<string, unknown> = { action: 'assign-team', userId: profile.id, teamId: value || null };
+    if (value === '__new__') {
+      const name = prompt('Name for the new team:');
+      if (!name || !name.trim()) return;
+      payload = { action: 'assign-team', userId: profile.id, newTeamName: name.trim(), newTeamCategory: 'beer-distribution' };
+    }
+    const res = await fetch('/api/admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) { setMessage({ type: 'error', text: d.error || 'Could not change the team' }); return; }
+    setMessage({ type: 'success', text: `Team updated for ${profile.display_name || profile.id}.` });
+    refresh();
+  }
+
   async function handleDeleteUser(profile: Profile) {
     if (!confirm(`Delete ${profile.display_name || profile.email}? This cannot be undone.`)) return;
     const res = await fetch('/api/admin', {
@@ -135,7 +156,7 @@ export default function AdminPage() {
   function refresh() {
     fetch('/api/admin')
       .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then(d => { if (d.profiles) setProfiles(d.profiles); setLoadError(false); })
+      .then(d => { if (d.profiles) setProfiles(d.profiles); if (Array.isArray(d.teams)) setTeams(d.teams); setLoadError(false); })
       .catch(() => setLoadError(true));
   }
 
@@ -260,7 +281,19 @@ export default function AdminPage() {
                             </select>
                           </td>
                           <td style={{ padding: '10px 12px', color: '#6b7280', fontSize: 12 }}>
-                            {p.teams?.name || (p.team_id ? `team ${p.team_id.slice(0, 8)}…` : '—')}
+                            <select
+                              aria-label={`Team for ${p.display_name || p.email || p.id}`}
+                              value={p.team_id || ''}
+                              onChange={e => handleAssignTeam(p, e.target.value)}
+                              style={{ border: '1.5px solid #e5e7eb', borderRadius: 6, padding: '4px 8px', fontSize: 12, background: '#fff', maxWidth: 200 }}
+                            >
+                              <option value="">— No team —</option>
+                              {p.team_id && !teams.some(t => t.id === p.team_id) && (
+                                <option value={p.team_id}>{p.teams?.name || `team ${p.team_id.slice(0, 8)}…`}</option>
+                              )}
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                              <option value="__new__">+ New team…</option>
+                            </select>
                           </td>
                           <td style={{ padding: '10px 12px' }}>
                             <button

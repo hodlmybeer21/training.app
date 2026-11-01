@@ -7,8 +7,8 @@ import { Persona } from '@/lib/personas';
 import { CATEGORIES } from '@/lib/categories';
 import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 import { getCategoryById } from '@/lib/categories';
-import { buildScenarioPrompt } from '@/lib/roleplay';
-import { SAMPLE_INCENTIVES, getSampleIncentive, incentiveBuyerPrompt, normalizeIncentiveGoal } from '@/lib/incentives';
+import { openingLineFor } from '@/lib/roleplay';
+import { SAMPLE_INCENTIVES, getSampleIncentive, normalizeIncentiveGoal } from '@/lib/incentives';
 import { IncentiveBrief, IncentiveGoalCard, SampleBadge } from '@/components/Incentives';
 
 // Build ALL_PERSONAS from every category so the selector always has a complete list
@@ -728,6 +728,13 @@ function Select({ label, value, onChange, options }: { label: string; value: str
   );
 }
 
+// True only when the browser can actually do speech-to-text (Chrome, Edge).
+function hasSpeechRecognition(): boolean {
+  if (typeof window === 'undefined') return false;
+  const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+  return typeof w.SpeechRecognition === 'function' || typeof w.webkitSpeechRecognition === 'function';
+}
+
 export default function PracticePage() {
   const [phase, setPhase] = useState<'setup' | 'call' | 'review'>('setup');
   const [selectedCategory, setSelectedCategory] = useState<string>('beer-distribution');
@@ -753,7 +760,7 @@ export default function PracticePage() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [activeNav, setActiveNav] = useState('practice');
-  const [customPersonas, setCustomPersonas] = useState<{ id: string; name: string; emoji: string; color: string; description: string; systemPrompt: string; openingLine: string; voicePitch: number; voiceRate: number; scoring_hints: string }[]>([]);
+  const [customPersonas, setCustomPersonas] = useState<{ id: string; name: string; emoji: string; color: string; description: string; systemPrompt: string; openingLine: string; voicePitch: number; voiceRate: number }[]>([]);
   const supabase = createClient();
   const allPersonasRef = useRef([...ALL_PERSONAS]);
   const conversationRef = useRef<Message[]>([]);
@@ -762,8 +769,13 @@ export default function PracticePage() {
   const speakingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const groqErrorRef = useRef('');
-  const goalsContextRef = useRef('');
+  // Turn token from the server's last reply; proves the transcript to /api/analyze.
+  const turnTokenRef = useRef<string | null>(null);
+  const [typedInput, setTypedInput] = useState('');
+  const [aiError, setAiError] = useState('');
+  const [scoreError, setScoreError] = useState('');
+  // Speech recognition only exists in Chrome/Edge; elsewhere the rep types.
+  const [voiceSupported, setVoiceSupported] = useState(true);
   // Store-owner account this run is for (?account=<id>), saved on the session so the
   // Accounts page can show scores per owner.
   const accountIdRef = useRef<string | null>(null);
@@ -823,13 +835,9 @@ export default function PracticePage() {
       .then(r => r.json())
       .then(d => { if (d.profile) setProfile(d.profile); setNameInput(d.profile?.display_name || ''); })
       .catch(() => {});
-    // Load active sales goals for this team
-    fetch('/api/goals')
-      .then(r => r.json())
-      .then(d => {
-        if (d.goal_context) goalsContextRef.current = d.goal_context;
-      })
-      .catch(() => {});
+    // Goal context for the AI is added on the server, so it isn't fetched here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVoiceSupported(hasSpeechRecognition());
     // Load custom personas for this team
     fetch('/api/personas')
       .then(r => r.json())
@@ -845,7 +853,6 @@ export default function PracticePage() {
             openingLine: p.opening_line,
             voicePitch: p.voice_pitch,
             voiceRate: p.voice_rate,
-            scoring_hints: p.scoring_hints || '',
           }));
           setCustomPersonas(team);
           // A team persona requested via ?persona=<id> can only be matched once loaded.
@@ -855,11 +862,6 @@ export default function PracticePage() {
       })
       .catch(() => {});
   }, []);
-
-  const getSystemPrompt = () => {
-    const base = selectedPersona.systemPrompt;
-    return buildScenarioPrompt(base, dealStage, difficulty, incentive ? incentiveBuyerPrompt(incentive) : '');
-  };
 
   const getBrief = () => {
     const base = (SCENARIO_BRIEF as any)[selectedPersona.id] || SCENARIO_BRIEF.default;
@@ -872,39 +874,78 @@ export default function PracticePage() {
     return { ...base, dealObjective: stageObjectives[dealStage] || base.dealObjective };
   };
 
-  const getOpeningLine = () => {
-    const stageOpenings: Record<string, string> = {
-      'initial-pitch': selectedPersona.openingLine,
-      'proposal': `Thanks for sending that over. I've had a chance to look it over and I have some questions — some of the pricing is higher than what I expected. Can we walk through it?`,
-      'negotiation': `Okay, I've got leadership involved and they have concerns. If we're going to move forward, we need to talk about what you can actually give us here. What's flex?`,
-      'renewal': `I appreciate you reaching out about renewing, but I'd be lying if I said everything was great this year. We need to talk about what's changed.`,
-    };
-    return stageOpenings[dealStage] || selectedPersona.openingLine;
-  };
+  // Same opening the server expects as the first buyer line.
+  const getOpeningLine = () => openingLineFor(selectedPersona.openingLine, dealStage);
 
   const brief = getBrief();
 
-  const sendToGroq = async (userText: string) => {
-    setStatus('thinking');
-    const conversationMessages = [...conversationRef.current, { role: 'user' as const, content: userText }];
+  // Scenario ids only: the server builds the prompt from these.
+  const scenarioIds = () => ({
+    personaId: selectedPersona.id,
+    dealStage,
+    difficulty,
+    ...(incentive ? { incentiveId: incentive.id } : {}),
+  });
+
+  const readError = async (res: Response, fallback: string) => {
     try {
-      const response = await fetch('/api/groq', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ personaId: selectedPersona.id, messages: conversationMessages }) });
-      if (!response.ok) { const err = await response.text(); throw new Error(err); }
+      const d = await res.json();
+      if (d && typeof d.error === 'string') return d.error;
+    } catch { /* not JSON */ }
+    if (res.status === 429) return 'Too many requests. Wait a minute and try again.';
+    return fallback;
+  };
+
+  /** Sends the rep's line; returns false (and shows why) if the buyer could not answer. */
+  const sendToGroq = async (userText: string): Promise<boolean> => {
+    setStatus('thinking');
+    setAiError('');
+    const conversationMessages = [...conversationRef.current.filter(m => m.role !== 'system'), { role: 'user' as const, content: userText }];
+    setMessages(prev => [...prev, { role: 'user', content: userText }]);
+    try {
+      const response = await fetch('/api/groq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...scenarioIds(), messages: conversationMessages, turnToken: turnTokenRef.current }),
+      });
+      if (!response.ok) throw new Error(await readError(response, 'The AI buyer could not answer. Try again.'));
       const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content || "I'm sorry, I didn't catch that.";
+      const reply = data.choices?.[0]?.message?.content;
+      if (!reply || typeof data.turnToken !== 'string') throw new Error('The AI buyer could not answer. Try again.');
+      turnTokenRef.current = data.turnToken;
       conversationRef.current = [...conversationMessages, { role: 'assistant', content: reply }];
-      setMessages(prev => [...prev, { role: 'user', content: userText }, { role: 'assistant', content: reply }]);
-      speak(reply, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       speakingRef.current = true; setStatus('speaking');
+      speak(reply, selectedPersona, () => { speakingRef.current = false; setStatus('idle'); });
+      return true;
     } catch (e: unknown) {
-      groqErrorRef.current = e instanceof Error ? e.message : 'Something went wrong'; setStatus('idle');
+      // Take the unanswered line back off the screen so the transcript matches what the buyer heard.
+      setMessages(prev => prev.slice(0, -1));
+      setAiError(e instanceof Error && e.message ? e.message : 'Something went wrong. Try again.');
+      setStatus('idle');
+      return false;
     }
   };
 
+  const sendTyped = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const text = typedInput.trim();
+    if (!text || status === 'thinking') return;
+    if (status === 'speaking' || status === 'listening') stopSpeaking();
+    setTypedInput('');
+    const ok = await sendToGroq(text);
+    if (!ok) setTypedInput(text);
+  };
+
   const startListening = () => {
-    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) { return; }
+    if (!hasSpeechRecognition()) {
+      setVoiceSupported(false);
+      setAiError('Voice input needs Chrome or Edge. Type your replies below.');
+      return;
+    }
     if (synthRef.current) synthRef.current.cancel();
     speakingRef.current = false;
+    setAiError('');
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SR();
     recognition.continuous = false;
@@ -921,7 +962,13 @@ export default function PracticePage() {
       }
       setInterimTranscript(interim);
     };
-    recognition.onerror = () => { setStatus('idle'); setInterimTranscript(''); };
+    recognition.onerror = (event: { error?: string }) => {
+      setStatus('idle'); setInterimTranscript('');
+      const code = event?.error;
+      if (code === 'not-allowed' || code === 'service-not-allowed') setAiError('Microphone access is blocked. Allow it in your browser, or type your replies below.');
+      else if (code === 'no-speech') setAiError("Didn't catch that. Tap the mic and try again, or type your reply.");
+      else if (code && code !== 'aborted') setAiError('Voice input stopped working. Type your reply below.');
+    };
     recognition.onend = () => { setStatus('idle'); setInterimTranscript(''); if (finalTranscript.trim()) sendToGroq(finalTranscript.trim()); };
     setStatus('listening'); setInterimTranscript(''); recognition.start();
   };
@@ -940,9 +987,14 @@ export default function PracticePage() {
     setCallSeconds(0);
     setMessages([]);
     setStatus('idle');
-    const goalContext = goalsContextRef.current || '';
+    setAiError('');
+    setScoreError('');
+    setReviewData(null);
+    setTypedInput('');
+    turnTokenRef.current = null;
     const opening = getOpeningLine();
-    conversationRef.current = [{ role: 'system', content: getSystemPrompt() + (goalContext ? '\n\n' + goalContext : '') }];
+    // The server builds the buyer's instructions; the client keeps only what was said.
+    conversationRef.current = [];
     timerRef.current = setInterval(() => setCallSeconds(s => s + 1), 1000);
     setStatus('speaking');
     speakingRef.current = true;
@@ -951,50 +1003,43 @@ export default function PracticePage() {
     conversationRef.current.push({ role: 'assistant', content: opening });
   };
 
-  const endCall = async () => {
-    if (timerRef.current) clearInterval(timerRef.current);
+  // Scores are computed and saved on the server from the verified transcript.
+  const scoreCall = async () => {
     setIsAnalyzing(true);
-    setPhase('review');
+    setScoreError('');
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
       const transcript = conversationRef.current.filter(m => m.role !== 'system');
+      if (!transcript.some(m => m.role === 'user') || !turnTokenRef.current) {
+        throw new Error('Say at least one thing to the buyer before ending the call, so there is something to score.');
+      }
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...scenarioIds(),
           transcript,
-          scenarioName: `${selectedPersona.name} [${dealStage}] [${difficulty}]`,
+          turnToken: turnTokenRef.current,
           durationSeconds: callSeconds,
-          scoringHints: (selectedPersona as any).scoring_hints || '',
-          ...(incentive ? { incentiveId: incentive.id } : {}),
+          accountId: accountIdRef.current,
         }),
       });
-      if (!res.ok) throw new Error('Analysis failed');
+      if (!res.ok) throw new Error(await readError(res, 'Scoring failed. Try again.'));
       const data = await res.json();
+      if (!data.analysis || typeof data.analysis.overallScore !== 'number') throw new Error('Scoring failed. Try again.');
       setReviewData(data.analysis);
-      // Save to Supabase
-      fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scenario_name: `${selectedPersona.name} [${dealStage}] [${difficulty}]${incentive ? ` [sample incentive: ${incentive.name}]` : ''}`,
-          deal_stage: dealStage,
-          difficulty_level: difficulty,
-          transcript: conversationRef.current.filter(m => m.role !== 'system').map(m => `${m.role}: ${m.content}`),
-          scores: data.analysis,
-          coaching_tips: data.analysis.coachingTips,
-          recommended_drill: data.analysis.recommendedDrill,
-          duration_seconds: callSeconds,
-          account_id: accountIdRef.current,
-        }),
-      }).then(r => r.ok ? null : console.error('Session save failed', r.status))
-      .catch(e => console.error('Session save error', e));
+      if (data.saveError) setScoreError(data.saveError);
     } catch (e) {
       setReviewData(null);
+      setScoreError(e instanceof Error && e.message ? e.message : 'Scoring failed. Try again.');
     }
     setIsAnalyzing(false);
+  };
+
+  const endCall = async () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    synthRef.current?.cancel(); speakingRef.current = false; recognitionRef.current?.abort();
+    setPhase('review');
+    await scoreCall();
   };
 
   const statusColor: Record<Status, string> = { idle: 'rgba(255,255,255,0.3)', listening: '#ef4444', thinking: '#D4860A', speaking: '#9DC44B' };
@@ -1188,7 +1233,7 @@ export default function PracticePage() {
               <div style={{ textAlign: 'center', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 12, color: statusColor[status] }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor[status] }} />
-                  {status === 'idle' ? 'Tap mic to speak' : status === 'listening' ? 'Listening...' : status === 'thinking' ? 'Thinking...' : 'Speaking...'}
+                  {status === 'idle' ? (voiceSupported ? 'Tap mic to speak or type below' : 'Type your reply below') : status === 'listening' ? 'Listening...' : status === 'thinking' ? 'Thinking...' : 'Speaking...'}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -1210,6 +1255,34 @@ export default function PracticePage() {
                   End Call & Analyze
                 </button>
               </div>
+              {!voiceSupported && (
+                <div role="status" style={{ maxWidth: 320, fontSize: 12, color: '#92400e', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+                  Voice input needs Chrome or Edge. Type your replies below.
+                </div>
+              )}
+              {aiError && (
+                <div role="alert" data-testid="practice-error" style={{ maxWidth: 320, fontSize: 12, color: '#991b1b', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+                  {aiError}
+                </div>
+              )}
+              <form onSubmit={sendTyped} style={{ display: 'flex', gap: 8, width: 320 }}>
+                <input
+                  aria-label="Type your reply"
+                  value={typedInput}
+                  onChange={e => setTypedInput(e.target.value)}
+                  placeholder={voiceSupported ? 'Or type your reply…' : 'Type your reply…'}
+                  maxLength={4000}
+                  disabled={status === 'thinking'}
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #d1d5db', fontSize: 13, background: '#fff', color: '#111827' }}
+                />
+                <button
+                  type="submit"
+                  disabled={!typedInput.trim() || status === 'thinking'}
+                  style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, background: '#D4860A', color: '#fff', opacity: !typedInput.trim() || status === 'thinking' ? 0.5 : 1 }}
+                >
+                  Send
+                </button>
+              </form>
             </div>
 
             {/* Right: Live context */}
@@ -1268,7 +1341,21 @@ export default function PracticePage() {
                       <span style={{ fontSize: 14, color: '#6b7280' }}>Reviewing transcript...</span>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 36, fontWeight: 800, color: '#D4860A' }}>{reviewData?.overallScore || '--'}<span style={{ fontSize: 18, color: '#6b7280' }}>/100</span></div>
+                    reviewData ? (
+                    <div style={{ fontSize: 36, fontWeight: 800, color: '#D4860A' }}>{reviewData.overallScore}<span style={{ fontSize: 18, color: '#6b7280' }}>/100</span></div>
+                    ) : (
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#991b1b' }}>Not scored</div>
+                    )
+                  )}
+                  {!isAnalyzing && scoreError && (
+                    <div role="alert" data-testid="score-error" style={{ marginTop: 8, fontSize: 13, color: '#991b1b', maxWidth: 360 }}>
+                      {scoreError}
+                      {!reviewData || /saved/i.test(scoreError) ? (
+                        <button onClick={scoreCall} style={{ marginLeft: 10, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: '#D4860A', color: '#fff' }}>
+                          Try scoring again
+                        </button>
+                      ) : null}
+                    </div>
                   )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -1279,6 +1366,7 @@ export default function PracticePage() {
                   </div>
                   {/* Skill breakdown */}
                   {([
+                    { name: 'Discovery', value: reviewData?.discovery, color: '#60a5fa' },
                     { name: 'Objection Handling', value: reviewData?.objectionHandling, color: '#4ade80' },
                     { name: 'Value Articulation', value: reviewData?.valueArticulation, color: '#D4860A' },
                     { name: 'Confidence & Pacing', value: reviewData?.confidencePacing, color: '#9DC44B' },
@@ -1287,10 +1375,10 @@ export default function PracticePage() {
                     <div key={skill.name} style={{ marginBottom: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                         <span style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>{skill.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: skill.color }}>{skill.value}%</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: skill.color }}>{typeof skill.value === 'number' ? `${skill.value}%` : '—'}</span>
                       </div>
                       <div style={{ height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${skill.value}%`, background: skill.color, borderRadius: 3 }} />
+                        <div style={{ height: '100%', width: `${typeof skill.value === 'number' ? skill.value : 0}%`, background: skill.color, borderRadius: 3 }} />
                       </div>
                     </div>
                   ))}
