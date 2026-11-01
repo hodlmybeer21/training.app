@@ -3,10 +3,152 @@ import { getSessionUser } from '@/lib/server/auth';
 import { clientIp, rateLimitAll } from '@/lib/server/rate-limit';
 import { cleanMessages, publicPersona, tooMany } from '@/lib/server/ai-guard';
 import { groqChat } from '@/lib/server/groq-chat';
-import { formatTranscript } from '@/lib/roleplay';
-import { getSampleIncentive, incentiveScoringPrompt, INCENTIVE_JSON_FIELD, normalizeIncentiveGoal } from '@/lib/incentives';
+import { getSampleIncentive, type SampleIncentive } from '@/lib/incentives';
+import { createAdminClient } from '@/lib/server/supabase-admin';
+import { buildScoringPrompt, parseAnalysis, type Analysis } from '@/lib/server/scoring';
+import { cleanTurns, parsePracticeOptions, practiceScope, resolvePracticePersona } from '@/lib/server/practice';
+import { verifyTurn, type TurnMessage } from '@/lib/server/turn-token';
 
 const MINUTE = 60_000;
+
+async function score(apiKey: string, prompt: string, incentive: SampleIncentive | null): Promise<Analysis | { error: string }> {
+  const result = await groqChat(apiKey, {
+    messages: [
+      { role: 'system', content: prompt },
+      { role: 'user', content: 'Analyze this transcript and return your JSON.' },
+    ],
+    temperature: 0.3,
+    maxTokens: 1024,
+    json: true,
+  });
+  if (!result.ok) return { error: 'The AI service had a problem. Try again.' };
+  return parseAnalysis(result.content, incentive) ?? { error: 'Could not read the score. Try again.' };
+}
+
+type SessionRow = {
+  id: string;
+  transcript: string[] | null;
+  overall_score: number | null;
+  discovery: number | null;
+  objection_handling: number | null;
+  value_articulation: number | null;
+  confidence_pacing: number | null;
+  closing_technique: number | null;
+  strengths: string[] | null;
+  opportunities: string[] | null;
+  coaching_tips: string[] | null;
+  recommended_drill: string | null;
+};
+
+function rowToAnalysis(r: SessionRow): Analysis {
+  return {
+    overallScore: r.overall_score ?? 0,
+    discovery: r.discovery,
+    objectionHandling: r.objection_handling,
+    valueArticulation: r.value_articulation,
+    confidencePacing: r.confidence_pacing,
+    closingTechnique: r.closing_technique,
+    strengths: r.strengths || [],
+    opportunities: r.opportunities || [],
+    coachingTips: r.coaching_tips || [],
+    recommendedDrill: r.recommended_drill,
+  };
+}
+
+/**
+ * Signed-in debrief. The transcript must carry the turn token the server issued with
+ * the last AI reply, so it is exactly the conversation the AI took part in. The score
+ * is computed here and the session row is written here; nothing the client says about
+ * scores is used.
+ */
+async function signedInAnalyze(userId: string, body: Record<string, unknown>) {
+  const rl = rateLimitAll(`analyze:user:${userId}`, [
+    { limit: 10, windowMs: 10 * MINUTE },
+    { limit: 60, windowMs: 24 * 60 * MINUTE },
+  ]);
+  if (!rl.ok) return tooMany(rl.retryAfterSeconds, true);
+
+  const sb = createAdminClient();
+  const { data: profile } = await sb.from('profiles').select('id, team_id').eq('id', userId).maybeSingle();
+  const teamId = (profile as { team_id?: string | null } | null)?.team_id ?? null;
+
+  const opts = parsePracticeOptions(body);
+  if ('error' in opts) return NextResponse.json({ error: opts.error }, { status: 400 });
+  const persona = await resolvePracticePersona(sb, teamId, body.personaId);
+  if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+
+  const transcript: TurnMessage[] | null = cleanTurns(body.transcript, { maxMessages: 81, maxCharsEach: 4000, maxCharsTotal: 40000 });
+  if (!transcript) return NextResponse.json({ error: 'Transcript is empty or too long' }, { status: 400 });
+  if (!transcript.some(m => m.role === 'user')) {
+    return NextResponse.json({ error: 'Say something to the buyer before asking for a score' }, { status: 400 });
+  }
+  const scope = practiceScope(userId, persona, opts);
+  if (!verifyTurn(body.turnToken, scope, transcript)) {
+    return NextResponse.json({ error: 'This call could not be verified, so it was not scored. Start a new call.', code: 'unverified_transcript' }, { status: 409 });
+  }
+
+  const storedTranscript = transcript.map(m => `${m.role}: ${m.content}`);
+
+  // Scoring the same call twice returns the first score instead of a second row.
+  const { data: recent } = await sb
+    .from('sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  const key = JSON.stringify(storedTranscript);
+  const dupe = ((recent || []) as SessionRow[]).find(r => JSON.stringify(r.transcript || []) === key);
+  if (dupe) return NextResponse.json({ analysis: rowToAnalysis(dupe), session: { id: dupe.id }, duplicate: true });
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
+
+  const durationSeconds = typeof body.durationSeconds === 'number' && Number.isFinite(body.durationSeconds)
+    ? Math.max(0, Math.min(4 * 3600, Math.floor(body.durationSeconds))) : 0;
+  const scenarioName = `${persona.name} [${opts.dealStage}] [${opts.difficulty}]`;
+  const result = await score(apiKey, buildScoringPrompt({
+    scenarioName,
+    scenarioContext: persona.custom ? persona.description : '',
+    incentive: opts.incentive,
+    durationSeconds,
+    transcript,
+  }), opts.incentive);
+  if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
+
+  // Link to a store-owner account only if the caller owns it; otherwise drop it.
+  let accountId: string | null = null;
+  if (typeof body.accountId === 'string' && /^[0-9a-f-]{36}$/i.test(body.accountId)) {
+    const { data: acct } = await sb.from('accounts').select('id').eq('id', body.accountId).eq('rep_id', userId).maybeSingle();
+    if (acct) accountId = body.accountId;
+  }
+
+  const { data: saved, error } = await sb
+    .from('sessions')
+    .insert({
+      user_id: userId,
+      scenario_name: `${scenarioName}${opts.incentive ? ` [sample incentive: ${opts.incentive.name}]` : ''}`,
+      overall_score: result.overallScore,
+      discovery: result.discovery,
+      objection_handling: result.objectionHandling,
+      value_articulation: result.valueArticulation,
+      confidence_pacing: result.confidencePacing,
+      closing_technique: result.closingTechnique,
+      strengths: result.strengths,
+      opportunities: result.opportunities,
+      coaching_tips: result.coachingTips,
+      recommended_drill: result.recommendedDrill,
+      duration_seconds: durationSeconds || null,
+      transcript: storedTranscript,
+      account_id: accountId,
+    })
+    .select('id')
+    .single();
+  if (error || !saved) {
+    console.error('analyze: session save failed', error?.message);
+    return NextResponse.json({ analysis: result, session: null, saveError: 'Your score could not be saved. Try scoring again.' });
+  }
+  return NextResponse.json({ analysis: result, session: { id: (saved as { id: string }).id } });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,32 +158,17 @@ export async function POST(req: NextRequest) {
     }
 
     const user = await getSessionUser();
-    let scenarioName: string;
-    let scoringHints = '';
-    let transcript;
+    if (user) return await signedInAnalyze(user.id, body);
 
-    if (user) {
-      const rl = rateLimitAll(`analyze:user:${user.id}`, [
-        { limit: 10, windowMs: 10 * MINUTE },
-        { limit: 60, windowMs: 24 * 60 * MINUTE },
-      ]);
-      if (!rl.ok) return tooMany(rl.retryAfterSeconds, true);
-      transcript = cleanMessages(body.transcript, { maxMessages: 80, maxCharsEach: 4000, maxCharsTotal: 40000, allowSystem: false });
-      scenarioName = typeof body.scenarioName === 'string' ? body.scenarioName.slice(0, 200) : 'General sales call';
-      scoringHints = typeof body.scoringHints === 'string' ? body.scoringHints.slice(0, 2000) : '';
-    } else {
-      // Public demo debrief: built-in personas only, small transcripts, tight limits.
-      const rl = rateLimitAll(`analyze:ip:${clientIp(req.headers)}`, [
-        { limit: 4, windowMs: 10 * MINUTE },
-        { limit: 15, windowMs: 24 * 60 * MINUTE },
-      ]);
-      if (!rl.ok) return tooMany(rl.retryAfterSeconds, false);
-      const persona = publicPersona(body.personaId);
-      if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
-      transcript = cleanMessages(body.transcript, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
-      scenarioName = persona.name;
-    }
-    // Optional sample incentive (both paths): resolved from server-side data by id.
+    // Public demo debrief: built-in personas only, small transcripts, tight limits, nothing saved.
+    const rl = rateLimitAll(`analyze:ip:${clientIp(req.headers)}`, [
+      { limit: 4, windowMs: 10 * MINUTE },
+      { limit: 15, windowMs: 24 * 60 * MINUTE },
+    ]);
+    if (!rl.ok) return tooMany(rl.retryAfterSeconds, false);
+    const persona = publicPersona(body.personaId);
+    if (!persona) return NextResponse.json({ error: 'Unknown scenario' }, { status: 400 });
+    const transcript = cleanMessages(body.transcript, { maxMessages: 24, maxCharsEach: 1200, maxCharsTotal: 12000, allowSystem: false });
     const incentive = body.incentiveId ? getSampleIncentive(body.incentiveId) : null;
     if (body.incentiveId && !incentive) return NextResponse.json({ error: 'Unknown incentive' }, { status: 400 });
     const durationSeconds = Number.isFinite(body.durationSeconds) ? Math.max(0, Math.floor(body.durationSeconds)) : 0;
@@ -58,86 +185,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'AI is not configured' }, { status: 500 });
     }
 
-    // Speakers are labelled by role: user = the rep being scored, assistant = the AI buyer.
-    const transcriptText = formatTranscript(transcript);
-    const repLines = transcript.filter(m => m.role === 'user').map((m, i) => `${i + 1}. ${m.content}`).join('\n');
-
-    const scenarioContext = scoringHints
-      ? `\n\nPERSONA-SPECIFIC SCORING CONTEXT:\n${scoringHints}\n\nUse these specific criteria when evaluating the salesperson's performance in this scenario.`
-      : '';
-
-    const incentiveContext = incentive ? incentiveScoringPrompt(incentive) : '';
-
-    const scoringPrompt = `You are an expert sales coach analyzing a recorded sales roleplay. Your job is to give honest, specific, actionable feedback.
-
-SCENARIO: ${scenarioName || 'General sales call'}${scenarioContext}${incentiveContext}
-DURATION: ${durationSeconds ? `${Math.floor(durationSeconds / 60)}m ${durationSeconds % 60}s` : 'Unknown'}
-
-SPEAKERS: Lines marked "SALES REP (trainee)" are the person being scored. Lines marked "BUYER (AI roleplay)" are the simulated buyer and are NEVER scored or credited to the rep. If a BUYER line offers product, pricing, free goods or shipping, that is the simulation drifting: ignore it, do not credit the rep for it, and do not penalize the rep for it. Every strength, opportunity and quote you cite must come from a SALES REP line.
-
-TRANSCRIPT:
-${transcriptText}
-
-EVERYTHING THE SALES REP SAID (the only lines you may quote, credit or criticize):
-${repLines}
-
-Analyze the salesperson's performance and return a JSON object with this exact structure:
-{
-  "overallScore": 0-100,
-  "discovery": 0-100,
-  "objectionHandling": 0-100,
-  "valueArticulation": 0-100,
-  "confidencePacing": 0-100,
-  "closingTechnique": 0-100,
-  "strengths": ["specific example from transcript", "specific example from transcript"],
-  "opportunities": ["specific example from transcript", "specific example from transcript"],
-  "coachingTips": ["specific actionable tip based on what happened", "specific actionable tip based on what happened"],
-  "recommendedDrill": "1-2 sentence description of the best next practice scenario based on their weakest area"${incentive ? `,\n  ${INCENTIVE_JSON_FIELD}` : ''}
-}
-
-Scoring guidance:
-- Overall score reflects how compelling, well-paced, and closing-oriented the call was
-- Discovery: did they ask good questions to uncover the prospect's needs, budget, timeline, decision process?
-- Objection Handling: did they address pushback without conceding too quickly?
-- Value Articulation: did they lead with ROI, margin impact, or differentiation before price?
-- Confidence & Pacing: were they concise, confident, or did they ramble / trail off?
-- Closing Technique: did they ask for the order, push for a next step, or try to close?${incentive ? `
-- incentiveGoal: "asked" is true only if the salesperson explicitly asked for the specific placement, stack, volume or pre-book. "outcome" is what the buyer actually agreed to. "score" rates how well they advanced that goal (0 if never asked).` : ''}
-
-Be specific — cite exact moments from the SALES REP's lines in strengths and opportunities. Never list something the BUYER said or asked for as a rep strength. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
-
-    const result = await groqChat(apiKey, {
-      messages: [
-        { role: 'system', content: scoringPrompt },
-        { role: 'user', content: 'Analyze this transcript and return your JSON.' }
-      ],
-      temperature: 0.3,
-      maxTokens: 1024,
-      json: true,
-    });
-    if (!result.ok) {
-      return NextResponse.json({ error: 'The AI service had a problem. Try again.' }, { status: 502 });
-    }
-    let content = result.content;
-
-    // Strip markdown code fences if present
-    content = content.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
-
-    let analysis;
-    try {
-      analysis = JSON.parse(content);
-    } catch {
-      return NextResponse.json({ error: 'Could not read the score. Try again.' }, { status: 502 });
-    }
-
-    if (incentive && analysis && typeof analysis === 'object') {
-      const goal = normalizeIncentiveGoal(analysis.incentiveGoal);
-      analysis.incentiveGoal = goal ? { ...goal, incentiveId: incentive.id, incentiveName: incentive.name, sample: true } : undefined;
-    } else if (analysis && typeof analysis === 'object') {
-      delete analysis.incentiveGoal;
-    }
-
-    return NextResponse.json({ analysis });
+    const result = await score(apiKey, buildScoringPrompt({ scenarioName: persona.name, incentive, durationSeconds, transcript }), incentive);
+    if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 });
+    return NextResponse.json({ analysis: result });
   } catch (e: unknown) {
     console.error('analyze route error', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });

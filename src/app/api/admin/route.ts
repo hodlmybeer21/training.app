@@ -4,7 +4,8 @@ import { isAdminEmail } from '@/lib/admin';
 import { createAdminClient as createSbAdmin } from '@/lib/server/supabase-admin';
 import { checkSeatAvailable } from '@/lib/server/seats';
 import { createInvitedUser, sendInviteEmail } from '@/lib/server/invites';
-import { VALID_ROLES } from '@/lib/tiers';
+import { VALID_ROLES, DEFAULT_SEAT_LIMIT } from '@/lib/tiers';
+import { createTeam } from '@/lib/server/teams';
 
 const ALLOWED_ROLES: readonly string[] = VALID_ROLES;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     const sbAdmin = createSbAdmin();
 
     // Get team names separately (no FK relationship in DB)
-    const { data: allTeams } = await sbAdmin.from('teams').select('id, name');
+    const { data: allTeams } = await sbAdmin.from('teams').select('id, name, category');
     const teamMap: Record<string, string> = {};
     (allTeams || []).forEach(t => { teamMap[t.id] = t.name; });
 
@@ -38,7 +39,8 @@ export async function GET(req: NextRequest) {
       teams: p.team_id ? { name: teamMap[p.team_id] || p.team_id } : null,
     }));
 
-    return NextResponse.json({ profiles: profilesWithTeams });
+    const teams = (allTeams || []).map((t: { id: string; name: string; category?: string | null }) => ({ id: t.id, name: t.name, category: t.category ?? null }));
+    return NextResponse.json({ profiles: profilesWithTeams, teams });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -161,6 +163,54 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error }, { status: 500 });
 
       return NextResponse.json({ data });
+    }
+
+    // ─── ASSIGN USER TO A TEAM ───────────────────────────────────────
+    // { userId, teamId } moves an existing user onto a team (within its seat limit);
+    // { userId, teamId: null } takes them off; { userId, newTeamName, newTeamCategory }
+    // creates a team and puts them on it. Reps report to the team's manager.
+    if (action === 'assign-team') {
+      const { userId } = body;
+      if (typeof userId !== 'string' || !userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
+      const { data: target } = await sbAdmin.from('profiles').select('id, role, team_id').eq('id', userId).maybeSingle();
+      if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+      let teamId: string | null = typeof body.teamId === 'string' && body.teamId ? body.teamId : null;
+      const newTeamName = typeof body.newTeamName === 'string' ? body.newTeamName.trim() : '';
+      if (newTeamName) {
+        teamId = await createTeam(sbAdmin, newTeamName, body.newTeamCategory);
+      } else if (teamId) {
+        const { data: team } = await sbAdmin.from('teams').select('id').eq('id', teamId).maybeSingle();
+        if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+
+      let managerId: string | null = null;
+      if (teamId && target.team_id !== teamId) {
+        const { data: onTeam } = await sbAdmin.from('profiles').select('id, role').eq('team_id', teamId);
+        const members = (onTeam || []) as { id: string; role: string | null }[];
+        const lead = members.find((m) => m.role === 'manager') || members.find((m) => m.role === 'admin');
+        if (lead) {
+          const seats = await checkSeatAvailable(sbAdmin, { id: lead.id, team_id: teamId });
+          if (!seats.ok) {
+            return NextResponse.json({ error: seats.error, code: 'seat_limit_reached', used: seats.used, limit: seats.limit }, { status: 403 });
+          }
+        } else if (members.length >= DEFAULT_SEAT_LIMIT) {
+          return NextResponse.json({ error: `This team already has ${members.length} people (limit ${DEFAULT_SEAT_LIMIT} with no paid plan on record).`, code: 'seat_limit_reached' }, { status: 403 });
+        }
+        if (target.role === 'rep' && lead) managerId = lead.id;
+      } else if (teamId && target.team_id === teamId && target.role === 'rep') {
+        const { data: lead } = await sbAdmin.from('profiles').select('id').eq('team_id', teamId).eq('role', 'manager').limit(1).maybeSingle();
+        managerId = (lead as { id?: string } | null)?.id ?? null;
+      }
+
+      const { data, error } = await sbAdmin
+        .from('profiles')
+        .update({ team_id: teamId, manager_id: managerId })
+        .eq('id', userId)
+        .select()
+        .single();
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ data, teamId });
     }
 
     // ─── DELETE USER ────────────────────────────────────────────────

@@ -99,3 +99,30 @@ export function formatTranscript(turns: { role: string; content: string }[]): st
     .map(m => `${SPEAKER_LABEL[m.role as RoleplaySpeaker]}: ${m.content}`)
     .join('\n');
 }
+
+// ── Practice scenario options ─────────────────────────────────────────────────
+// Every category uses these four stage ids (with category-specific labels), so the
+// server can validate what the practice page sends.
+export const DEAL_STAGE_IDS = ['initial-pitch', 'proposal', 'negotiation', 'renewal'] as const;
+export type DealStageId = (typeof DEAL_STAGE_IDS)[number];
+export const DIFFICULTY_IDS = ['easy', 'challenging', 'intense'] as const;
+export type DifficultyId = (typeof DIFFICULTY_IDS)[number];
+
+export function isDealStage(v: unknown): v is DealStageId {
+  return typeof v === 'string' && (DEAL_STAGE_IDS as readonly string[]).includes(v);
+}
+export function isDifficulty(v: unknown): v is DifficultyId {
+  return typeof v === 'string' && (DIFFICULTY_IDS as readonly string[]).includes(v);
+}
+
+// What the character says first at each deal stage (the persona's own opening line
+// for the initial pitch). Shared so the server can check the opening it is sent.
+const STAGE_OPENINGS: Record<string, string> = {
+  'proposal': `Thanks for sending that over. I've had a chance to look it over and I have some questions — some of the pricing is higher than what I expected. Can we walk through it?`,
+  'negotiation': `Okay, I've got leadership involved and they have concerns. If we're going to move forward, we need to talk about what you can actually give us here. What's flex?`,
+  'renewal': `I appreciate you reaching out about renewing, but I'd be lying if I said everything was great this year. We need to talk about what's changed.`,
+};
+
+export function openingLineFor(personaOpening: string, dealStage: string): string {
+  return STAGE_OPENINGS[dealStage] || personaOpening;
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { PLANS, isPlanKey, priceIdForPlan } from '@/lib/tiers';
+import { safeRedirectUrl } from '@/lib/server/redirects';
 
 let _stripe: Stripe | null = null;
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     // The pricing page sends a plan key ("solo" | "small" | "team") as `priceId`.
     const body = await req.json();
     const plan = body.plan ?? body.priceId;
-    const { successUrl, cancelUrl, email } = body;
+    const { email } = body;
 
     if (!isPlanKey(plan)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
     const tier = PLANS[plan].tier;
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://training.goodbotai.tech';
+    // Stripe sends the buyer back to these URLs, so only our own origins are allowed.
+    // Anything else (another site, javascript:, a malformed URL) falls back to the default.
+    const allowed = [req.nextUrl.origin, baseUrl];
+    const successUrl = safeRedirectUrl(body.successUrl, allowed, `${baseUrl}/dashboard?upgrade=success`);
+    const cancelUrl = safeRedirectUrl(body.cancelUrl, allowed, `${baseUrl}/pricing`);
 
     const session = await getStripe().checkout.sessions.create({
       mode: 'subscription',
@@ -50,9 +56,9 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      customer_email: email || undefined,
-      success_url: successUrl || `${baseUrl}/dashboard?upgrade=success`,
-      cancel_url: cancelUrl || `${baseUrl}/pricing`,
+      customer_email: typeof email === 'string' && email ? email : undefined,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       // The webhook reads the tier from here (see tierFromCheckoutMetadata).
       metadata: { plan, tier },
       subscription_data: { metadata: { plan, tier } },
