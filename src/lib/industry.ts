@@ -234,6 +234,29 @@ export const SAFE_TIPS: Record<Exclude<IndustryProfile, 'beer-distribution'>, st
   'hr-management': "State the purpose in one or two plain sentences, ask an open question and listen before you respond, acknowledge the other person's view, stick to facts and policy, and close by summarizing next steps, owners, dates and what will be documented.",
 };
 
+// A debrief always shows at least two tips and a drill. When the model's own lines
+// are missing or filtered out, these industry-safe ones fill the gap (beer's first
+// tip is SAFE_MARKETING_TIP in compliance.ts).
+export const BEER_SAFE_TIP_2 =
+  "If the buyer asks for a tap fee, a promo budget or free product, give a clear, friendly no (those are off the table under tied-house rules) and move straight to what you can do: the right beer for the gap they described, rotation and keg-change timing, a staff tasting, and branded point-of-sale. Then ask for a specific next step.";
+
+export const SECOND_SAFE_TIPS: Record<Exclude<IndustryProfile, 'beer-distribution'>, string> = {
+  'b2b': 'When they push back, ask one question to find the real concern before you answer it, answer with something you can prove, and confirm it landed before moving on.',
+  'retail': "If they hesitate, ask what's holding them back, answer that one concern honestly within store policy, and offer a clear choice rather than more pressure.",
+  'real-estate': "When a client pushes back on your fee or plan, ask what's behind it, explain what your service includes and how it serves their goal, remind them terms are negotiable, and confirm the next step in writing.",
+  'insurance': 'When a client is upset about price or a decision, acknowledge it, review what changed and the options you can actually check (coverage, deductibles, available discounts), and give a specific time you will follow up.',
+  'hr-management': 'When the other person gets emotional or pushes back, pause, reflect back what you heard, and steer back to the facts, the policy and what happens next, without making promises you cannot keep.',
+};
+
+export const SAFE_DRILLS: Record<IndustryProfile, string> = {
+  'beer-distribution': 'Run this call again and, when the buyer asks for a tap fee, promo money or free product, give a clear, friendly no, offer two legal ways you will help the beer sell, then ask for a trial placement with a follow-up date.',
+  'b2b': 'Run this call again and, before you pitch, ask two questions about what a good outcome looks like for them; then close by asking for a specific next step with a date.',
+  'retail': 'Run this conversation again: ask two questions about how they will use the product before recommending one, then handle their hesitation and offer a clear choice.',
+  'real-estate': "Run this appointment again: open with two questions about the client's goals and timeline, explain what your service includes when they push back, and close by asking for a signed agreement or a set next appointment.",
+  'insurance': 'Run this call again: confirm what the client wants protected, explain the options in plain language without promising outcomes, and end with a specific follow-up time and the documents you need.',
+  'hr-management': 'Run this conversation again: state the purpose in two sentences, ask an open question and listen, acknowledge their view, and close by summarizing next steps, owners and what will be documented.',
+};
+
 // ── Stage notes, openings and objectives ─────────────────────────────────────
 // The four stage ids are shared by every category (labels in categories.ts). The
 // notes are written TO THE AI CHARACTER; the objectives are shown to the trainee.

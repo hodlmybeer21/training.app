@@ -2,7 +2,8 @@ import { formatTranscript } from '@/lib/roleplay';
 import { incentiveScoringPrompt, INCENTIVE_JSON_FIELD, normalizeIncentiveGoal, type SampleIncentive } from '@/lib/incentives';
 import type { ChatMessage } from '@/lib/server/ai-guard';
 import { COACHING_COMPLIANCE_RULES, SAFE_MARKETING_TIP, sanitizeCoachingList, recommendsInducement, filterCoachingList, recommendsSteering } from '@/lib/compliance';
-import { BEER, INDUSTRY_COACHING_RULES, SAFE_TIPS, scorecardFor, type IndustryProfile } from '@/lib/industry';
+import { BEER, BEER_SAFE_TIP_2, INDUSTRY_COACHING_RULES, SAFE_DRILLS, SAFE_TIPS, SECOND_SAFE_TIPS, scorecardFor, type IndustryProfile } from '@/lib/industry';
+import { trimTraineeQuotes } from '@/lib/server/debrief-quotes';
 
 // The scoring prompt and the clean-up of what the model returns, shared by the
 // signed-in practice debrief and the public demo. Scores are only ever produced here,
@@ -68,8 +69,8 @@ Analyze the trainee's performance and return a JSON object with this exact struc
   "valueArticulation": 0-100,
   "confidencePacing": 0-100,
   "closingTechnique": 0-100,
-  "strengths": ["specific example from transcript", "specific example from transcript"],
-  "opportunities": ["specific example from transcript", "specific example from transcript"],
+  "strengths": ["what the trainee did well and why it worked, in your own words", "another strength, in your own words"],
+  "opportunities": ["what the trainee should do differently and what to say or do instead, in your own words", "another opportunity, in your own words"],
   "coachingTips": ["specific actionable tip based on what happened", "specific actionable tip based on what happened"],
   "recommendedDrill": "1-2 sentence description of the best next practice scenario based on their weakest area"${incentive ? `,\n  ${INCENTIVE_JSON_FIELD}` : ''}
 }
@@ -80,7 +81,7 @@ ${skillLines}${beerInducementLine}${incentiveLine}
 
 ${rules}
 
-Be specific — cite exact moments from the ${T}'s lines in strengths and opportunities. Never list something the ${O} said or asked for as a trainee strength. Do not give generic praise. If they struggled, say so directly. Keep all advice about this industry; do not borrow tactics from other industries. Return JSON only, no commentary.`;
+Be specific — point to exact moments from the ${T}'s lines in strengths and opportunities, but describe them in your own words and explain why they worked or what to do instead. Never paste a whole ${T} line; a short quote of under 10 words is fine. When you suggest a line for the trainee to say, never put made-up numbers in it (sales figures, margins, percentages); use a placeholder like [your velocity data] instead. Never list something the ${O} said or asked for as a trainee strength. Do not give generic praise. If they struggled, say so directly. Keep all advice about this industry; do not borrow tactics from other industries. Return JSON only, no commentary.`;
 }
 
 export type Analysis = {
@@ -106,7 +107,7 @@ function strList(v: unknown, n: number, len: number): string[] {
 }
 
 /** Parses the model's JSON into a bounded Analysis. Null when there is no usable overall score. */
-export function parseAnalysis(content: string, incentive: SampleIncentive | null, profile: IndustryProfile = BEER): Analysis | null {
+export function parseAnalysis(content: string, incentive: SampleIncentive | null, profile: IndustryProfile = BEER, traineeLines: string[] = []): Analysis | null {
   const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
   let raw: Record<string, unknown>;
   try {
@@ -126,18 +127,42 @@ export function parseAnalysis(content: string, incentive: SampleIncentive | null
   const safeTip = beer ? SAFE_MARKETING_TIP : SAFE_TIPS[profile as Exclude<IndustryProfile, 'beer-distribution'>];
   const clean = (items: string[], fallback?: string) =>
     beer ? sanitizeCoachingList(items, fallback).items : filterCoachingList(items, unsafe, fallback).items;
+  // Always at least two tips: the model's safe ones first, then the industry's safe ones.
+  const safeTip2 = beer ? BEER_SAFE_TIP_2 : SECOND_SAFE_TIPS[profile as Exclude<IndustryProfile, 'beer-distribution'>];
   const tips = clean(strList(raw.coachingTips, 10, 1000), safeTip);
-  const analysis: Analysis = {
-    overallScore,
+  for (const t of [safeTip, safeTip2]) if (tips.length < 2 && !tips.includes(t)) tips.push(t);
+  const drill = typeof raw.recommendedDrill === 'string' && raw.recommendedDrill.trim() && !unsafe(raw.recommendedDrill)
+    ? raw.recommendedDrill.trim().slice(0, 1000)
+    : SAFE_DRILLS[profile];
+  // Strengths and opportunities paraphrase the trainee; a pasted line is shortened or dropped.
+  const coach = (items: string[]) => clean(items).map(t => trimTraineeQuotes(t, traineeLines)).filter((t): t is string => !!t);
+  const scores = {
     discovery: clampScore(raw.discovery),
     objectionHandling: clampScore(raw.objectionHandling),
     valueArticulation: clampScore(raw.valueArticulation),
     confidencePacing: clampScore(raw.confidencePacing),
     closingTechnique: clampScore(raw.closingTechnique),
-    strengths: clean(strList(raw.strengths, 10, 1000)),
-    opportunities: clean(strList(raw.opportunities, 10, 1000)),
-    coachingTips: tips.length ? tips : [safeTip],
-    recommendedDrill: typeof raw.recommendedDrill === 'string' && !unsafe(raw.recommendedDrill) ? raw.recommendedDrill.slice(0, 1000) : null,
+  };
+  const strengths = coach(strList(raw.strengths, 10, 1000));
+  const opportunities = coach(strList(raw.opportunities, 10, 1000));
+  // If every line was dropped, fall back to the scorecard itself: the best and worst skill.
+  const rated = scorecardFor(profile).skills
+    .map(s => ({ ...s, score: scores[s.key] }))
+    .filter((s): s is typeof s & { score: number } => typeof s.score === 'number')
+    .sort((a, b) => b.score - a.score);
+  if (!strengths.length && rated.length) strengths.push(`${rated[0].label} was your strongest area on this call (${rated[0].score}/100). Keep doing what worked there.`);
+  if (!opportunities.length && rated.length) {
+    const low = rated[rated.length - 1];
+    const ask = low.guidance.replace(/\bthey\b/g, 'you').replace(/\btheir\b/g, 'your');
+    opportunities.push(`${low.label} is the area to work on next (${low.score}/100). Next time, check yourself on this: ${ask}`);
+  }
+  const analysis: Analysis = {
+    overallScore,
+    ...scores,
+    strengths,
+    opportunities,
+    coachingTips: tips,
+    recommendedDrill: drill,
   };
   if (incentive && beer) {
     const goal = normalizeIncentiveGoal(raw.incentiveGoal);

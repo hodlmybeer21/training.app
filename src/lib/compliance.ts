@@ -16,6 +16,7 @@ export const COACHING_COMPLIANCE_RULES = `
 COMPLIANCE (alcohol trade-practice / tied-house rules; follow these in EVERY tip, opportunity, strength and drill):
 - Never tell the rep to give the account free or discounted product to win the placement: no free kegs, cases, pints, rounds, "on the house" beer, or product to pour for free.
 - Never tell the rep to pay for, split, reimburse or "cover" the account's advertising, social ads, boosted posts, flyers, events, staff, tap fees, slotting or placement fees. That includes "I'll run a $X Facebook/Instagram ad for your bar".
+- Tap fees, slotting fees, promo budgets and event money paid to the account are not negotiating items. Never tell the rep to quote, negotiate, waive, reduce or "get back to them on" a tap fee or a promo budget for the account; product pricing (case and keg price) is fine to discuss.
 - Never suggest cash, gift cards, rebates to the account, free equipment, loans, extended credit, guaranteed sales, buy-backs or "we'll take it back if it doesn't sell", or asking for an exclusive (only-our-brand) tap or shelf.
 - If the buyer asks for any of those, the best answer is a polite, clear no plus a legal alternative. Credit the rep for doing that; never penalize the rep for refusing.
 - Coach toward legal tactics instead: discovery about the account's goals; brand story and product fit; velocity and sell-through facts the rep can actually source; placement, rotation and keg-change timing; menu and tap-list features; staff product education and tastings within the law; branded point-of-sale materials (coasters, tap markers, posters) without paying the account to use them; stocking and rotating the rep's own product; pricing within the account's and the law's limits; promoting the brand on the brand's own channels; and following up with a clear next step.
@@ -37,23 +38,43 @@ const INDUCEMENT_PATTERNS: RegExp[] = [
   /\b(?:co-?op|cooperative)\s+(?:ad|ads|advertising|marketing)\b/i,
   /\b(?:pay|offer|cover|split)\s+(?:a\s+|the\s+|their\s+)?slotting\s+(?:fee|allowance)s?\b/i,
   // money, equipment, guaranteed sales, exclusivity
-  /\b(?:cash|gift\s+cards?|kickbacks?|rebates?\s+to\s+the\s+(?:account|bar|store|owner))\b/i,
+  // "cash" alone is too broad ("cash flow", "cash-and-carry"); flag money handed to the account.
+  /\b(?:give|offer|pay|hand|slip)\w*\s+(?:\w+\s+){0,3}cash\b|\bcash\s+(?:incentives?|payments?|back|bonus(?:es)?|rebates?|to\s+the\s+(?:account|bar|store|owner))\b/i,
+  /\b(?:gift\s+cards?|kickbacks?|rebates?\s+to\s+the\s+(?:account|bar|store|owner))\b/i,
+  // treating a tap fee or a promo budget for the account as something the rep provides
+  /\b(?:provide|quote|give|offer|share|get|waive|reduce|lower|negotiate|cover|discuss|send|confirm)\w*\s+(?:\w+\s+){0,4}tap[- ]?(?:handle\s+)?fees?\b/i,
+  /\b(?:offer|provide|give|commit|promise|share|fund|put\s+up)\w*\s+(?:\w+\s+){0,4}(?:promo(?:tional)?|marketing|event|launch)\s+(?:budgets?|dollars|money|funds?|funding|spend)\b/i,
   /\b(?:free|loan(?:ed)?|lend)\s+(?:a\s+)?(?:kegerator|draft\s+system|cooler|fridge|equipment|tap\s+system)\b/i,
   /\b(?:guaranteed?\s+(?:sale|sell[- ]through)|buy[- ]?back|take\s+(?:it|them|the\s+kegs?)\s+back\s+if)\b/i,
-  /\bexclusiv(?:e|ity)\s+(?:tap|handle|line|shelf|placement|account)s?\b|\b(?:tap|handle|line)\s+exclusivity\b/i,
+  /\bexclusiv(?:e|ity)\s+(?:tap|handle|line|shelf|placement|account)s?\b(?!\s+(?:takeovers?|nights?|events?))|\b(?:tap|handle|line)\s+exclusivity\b/i,
 ];
 
 // A match right after one of these words is the line warning against the tactic
 // ("declined to cover their ad spend", "don't offer free kegs"), not recommending it.
-const NEGATION_BEFORE = /\b(?:declin\w*|refus\w*|turn(?:ed|s)?\s+down|said\s+no|say\s+no|not\s+allowed|prohibit\w*|illegal|unlawful|can'?t|cannot|won'?t|wouldn'?t|shouldn'?t|never|don'?t|do\s+not|avoid\w*|no|without|rather\s+than|instead\s+of\s+(?:offering|promising|giving|paying))\b[^.;!?]{0,30}$/i;
+const NEGATION_BEFORE = /\b(?:declin\w*|refus\w*|stop\w*|turn(?:ed|s)?\s+down|said\s+no|say\s+no|not\s+allowed|prohibit\w*|illegal|unlawful|can'?t|cannot|won'?t|wouldn'?t|shouldn'?t|never|don'?t|do\s+not|avoid\w*|no|without|rather\s+than|instead\s+of\s+(?:offering|promising|giving|paying))\b[^.;!?]{0,30}$/i;
+
+// "When the buyer asks you to cover the tap fee, say no and offer a staff tasting":
+// the match describes the buyer's ask, and the line coaches a refusal. Kept only when
+// the line also says no somewhere and never tells the rep to go along with it.
+const ASK_CONTEXT = /\b(?:asks?|asked|asking|request\w*|demand\w*|wants?|wanted|push(?:es|ed|ing)?\s+for|brings?\s+up|mentions?|raises?|fish\w*\s+for)\b[^.;!?]{0,40}$/i;
+const REFUSAL_CUE = /\b(?:say\s+no|said\s+no|(?:clear|polite|firm|friendly),?\s+no\b|declin\w*|refus\w*|turn\w*\s+(?:it\s+|that\s+)?down|can'?t|cannot|not\s+allowed|off\s+the\s+table|not\s+something\s+(?:you|we)\s+can|illegal|unlawful|tied-house|legal\s+alternatives?)\b/i;
+const GO_ALONG = /\b(?:agree\s+to|say\s+yes|go\s+ahead\s+and|accept\s+(?:the|their)|meet\s+them\s+halfway|split\s+the\s+difference)\b/i;
+// "The rep offered to cover the tap fee, which is a tied-house problem": an
+// opportunity that names the mistake and why it's wrong.
+const CORRECTION_AFTER = /\b(?:tied-house|not\s+allowed|illegal|unlawful|violat\w*|against\s+the\s+(?:law|rules)|can'?t\s+legally|isn'?t\s+legal|not\s+legal|compliance\s+(?:problem|issue|risk))\b/i;
 
 /** True when a coaching line recommends something that reads as a prohibited inducement. */
 export function recommendsInducement(text: string): boolean {
   for (const re of INDUCEMENT_PATTERNS) {
     const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
     for (const m of text.matchAll(g)) {
-      const before = text.slice(Math.max(0, (m.index ?? 0) - 60), m.index ?? 0);
-      if (!NEGATION_BEFORE.test(before)) return true;
+      const at = m.index ?? 0;
+      const before = text.slice(Math.max(0, at - 60), at);
+      const after = text.slice(at + m[0].length);
+      if (NEGATION_BEFORE.test(before)) continue;
+      if (ASK_CONTEXT.test(before) && REFUSAL_CUE.test(text) && !GO_ALONG.test(text)) continue;
+      if (CORRECTION_AFTER.test(after) && !GO_ALONG.test(text)) continue;
+      return true;
     }
   }
   return false;

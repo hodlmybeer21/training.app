@@ -1,6 +1,6 @@
 import type { ChatMessage } from '@/lib/server/ai-guard';
 import type { groqChat as GroqChatFn, GroqResult } from '@/lib/server/groq-chat';
-import { cleanReply, IN_ROLE_FALLBACK, isBuyerPersona, looksLikeRepSpeak, RETRY_REMINDER, roleLock } from '@/lib/roleplay';
+import { cleanReply, EMPTY_REPLY_FALLBACK, IN_ROLE_FALLBACK, isBuyerPersona, looksLikeRepSpeak, RETRY_REMINDER, roleLock } from '@/lib/roleplay';
 import { BEER, type IndustryProfile } from '@/lib/industry';
 
 /**
@@ -27,9 +27,15 @@ export async function roleplayReply(
   chat: typeof GroqChatFn,
   profile: IndustryProfile = BEER,
 ): Promise<GroqResult & { retried?: boolean; fallback?: boolean }> {
-  const first = await chat(apiKey, { messages, temperature: 0.8, maxTokens });
+  let first = await chat(apiKey, { messages, temperature: 0.8, maxTokens });
   if (!first.ok) return first;
-  const reply = cleanReply(first.content);
+  let reply = cleanReply(first.content);
+  // gpt-oss can spend its whole budget reasoning and return no text; ask once more.
+  if (!reply) {
+    const again = await chat(apiKey, { messages, temperature: 0.8, maxTokens });
+    if (again.ok && cleanReply(again.content)) { first = again; reply = cleanReply(again.content); }
+    else return { ok: true, content: EMPTY_REPLY_FALLBACK, model: first.model, retried: true, fallback: true };
+  }
   // The rep-speak check is tuned to beer buyers ("your taps", "free kegs"); a retail
   // customer saying "your store" is normal, so other industries skip it.
   if (profile !== BEER || !isBuyerPersona(personaId) || !looksLikeRepSpeak(reply)) return { ...first, content: reply };

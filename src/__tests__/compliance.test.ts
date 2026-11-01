@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { recommendsInducement, sanitizeCoachingList, SAFE_MARKETING_TIP, COACHING_COMPLIANCE_RULES } from '@/lib/compliance';
 import { buildScoringPrompt, parseAnalysis } from '@/lib/server/scoring';
+import { BEER_SAFE_TIP_2, SAFE_DRILLS } from '@/lib/industry';
 
 describe('coaching compliance (tied-house)', () => {
   const bad = [
@@ -39,8 +40,8 @@ describe('coaching compliance (tied-house)', () => {
   });
   it('strips inducement advice from a parsed debrief', () => {
     const a = parseAnalysis(JSON.stringify({ overallScore: 45, coachingTips: [bad[0]], opportunities: [bad[1], good[0]], strengths: [], recommendedDrill: 'Practice offering free pints.' }), null)!;
-    expect(a.coachingTips).toEqual([SAFE_MARKETING_TIP]);
+    expect(a.coachingTips).toEqual([SAFE_MARKETING_TIP, BEER_SAFE_TIP_2]);
     expect(a.opportunities).toEqual([good[0]]);
-    expect(a.recommendedDrill).toBeNull();
+    expect(a.recommendedDrill).toBe(SAFE_DRILLS['beer-distribution']);
   });
 });
