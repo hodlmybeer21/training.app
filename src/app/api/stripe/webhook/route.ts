@@ -10,6 +10,8 @@ function getStripe(): Stripe {
     if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not configured');
     _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: '2026-04-22.dahlia',
+      // fetch works on Node and on Cloudflare Workers (the Node http client hangs on Workers).
+      httpClient: Stripe.createFetchHttpClient?.(),
     });
   }
   return _stripe;
@@ -33,7 +35,8 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(body, sig, whsec!);
+    // Async variant: works on Node and on Cloudflare Workers (Web Crypto has no sync HMAC).
+    event = await getStripe().webhooks.constructEventAsync(body, sig, whsec!);
   } catch (err: unknown) {
     console.error('Webhook signature verification failed:', err instanceof Error ? err.message : err);
     return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });

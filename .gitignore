@@ -7,3 +7,8 @@ node_modules/
 # local env files (never commit secrets)
 .env*
 !.env.example
+
+# OpenNext / Cloudflare
+.open-next
+.wrangler
+.dev.vars

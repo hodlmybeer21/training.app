@@ -98,8 +98,8 @@ describe('stripe webhook invite flow', () => {
       + fs.readFileSync('src/lib/server/invites.ts', 'utf8');
     expect(src).not.toMatch(/tempPassword|generateSecurePassword|Password: \$\{/);
     expect(src).toMatch(/generateLink\(\{\s*type: 'invite'/);
-    // Signature verification line unchanged
-    expect(src).toContain("event = getStripe().webhooks.constructEvent(body, sig, whsec!);");
+    // Signature verification still uses the same secret; async so it also runs on Workers
+    expect(src).toContain("event = await getStripe().webhooks.constructEventAsync(body, sig, whsec!);");
   });
 
   it('rejects unsigned requests with 400', async () => {

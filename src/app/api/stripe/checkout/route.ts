@@ -10,6 +10,8 @@ function getStripe(): Stripe {
     if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not configured');
     _stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: '2026-04-22.dahlia',
+      // fetch works on Node and on Cloudflare Workers (the Node http client hangs on Workers).
+      httpClient: Stripe.createFetchHttpClient?.(),
     });
   }
   return _stripe;
