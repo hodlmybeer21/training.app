@@ -1,6 +1,7 @@
 import { formatTranscript } from '@/lib/roleplay';
 import { incentiveScoringPrompt, INCENTIVE_JSON_FIELD, normalizeIncentiveGoal, type SampleIncentive } from '@/lib/incentives';
 import type { ChatMessage } from '@/lib/server/ai-guard';
+import { COACHING_COMPLIANCE_RULES, SAFE_MARKETING_TIP, sanitizeCoachingList, recommendsInducement } from '@/lib/compliance';
 
 // The scoring prompt and the clean-up of what the model returns, shared by the
 // signed-in practice debrief and the public demo. Scores are only ever produced here,
@@ -55,8 +56,11 @@ Scoring guidance:
 - Objection Handling: did they address pushback without conceding too quickly?
 - Value Articulation: did they lead with ROI, margin impact, or differentiation before price?
 - Confidence & Pacing: were they concise, confident, or did they ramble / trail off?
-- Closing Technique: did they ask for the order, push for a next step, or try to close?${incentive ? `
+- Closing Technique: did they ask for the order, push for a next step, or try to close?
+- If the buyer asked for free product, paid ads or other inducements and the rep politely declined and offered a legal alternative, count that as strong objection handling. If the rep offered an inducement, list it under opportunities as something to stop doing and explain the legal alternative.${incentive ? `
 - incentiveGoal: "asked" is true only if the salesperson explicitly asked for the specific placement, stack, volume or pre-book. "outcome" is what the buyer actually agreed to. "score" rates how well they advanced that goal (0 if never asked).` : ''}
+
+${COACHING_COMPLIANCE_RULES}
 
 Be specific — cite exact moments from the SALES REP's lines in strengths and opportunities. Never list something the BUYER said or asked for as a rep strength. Do not give generic praise. If they struggled, say so directly. Return JSON only, no commentary.`;
 }
@@ -102,10 +106,12 @@ export function parseAnalysis(content: string, incentive: SampleIncentive | null
     valueArticulation: clampScore(raw.valueArticulation),
     confidencePacing: clampScore(raw.confidencePacing),
     closingTechnique: clampScore(raw.closingTechnique),
-    strengths: strList(raw.strengths, 10, 1000),
-    opportunities: strList(raw.opportunities, 10, 1000),
-    coachingTips: strList(raw.coachingTips, 10, 1000),
-    recommendedDrill: typeof raw.recommendedDrill === 'string' ? raw.recommendedDrill.slice(0, 1000) : null,
+    // Safety net for the compliance rules in the prompt: drop any line that coaches
+    // toward free product, paying for the account's ads, or another inducement.
+    strengths: sanitizeCoachingList(strList(raw.strengths, 10, 1000)).items,
+    opportunities: sanitizeCoachingList(strList(raw.opportunities, 10, 1000)).items,
+    coachingTips: sanitizeCoachingList(strList(raw.coachingTips, 10, 1000), SAFE_MARKETING_TIP).items,
+    recommendedDrill: typeof raw.recommendedDrill === 'string' && !recommendsInducement(raw.recommendedDrill) ? raw.recommendedDrill.slice(0, 1000) : null,
   };
   if (incentive) {
     const goal = normalizeIncentiveGoal(raw.incentiveGoal);

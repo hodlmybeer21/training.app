@@ -59,7 +59,7 @@ function SetPasswordForm() {
       {stage === 'invalid' && (
         <>
           <p className="sub" role="alert">
-            This link has expired or was already used. Reply to your welcome email and we&apos;ll send a new one.
+            This link has expired or was already used. <a href="/forgot-password">Get a new link</a>, or reply to your welcome email and we&apos;ll send one.
           </p>
           <div className="auth-alt">
             Already set a password? <a href="/login">Sign in</a>.

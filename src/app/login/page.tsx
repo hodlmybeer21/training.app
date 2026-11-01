@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import SiteHeader from '@/components/site/SiteHeader';
 import SiteFooter from '@/components/site/SiteFooter';
 
@@ -45,6 +46,7 @@ export default function LoginPage() {
             <div>
               <label htmlFor="password">Password</label>
               <input id="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+              <div style={{ marginTop: 8, fontSize: 13 }}><Link href="/forgot-password">Forgot your password?</Link></div>
             </div>
 
             {error && <div className="err" role="alert">{error}</div>}

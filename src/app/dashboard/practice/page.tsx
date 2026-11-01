@@ -222,13 +222,13 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
     prospectTitle: 'NH Bar/Restaurant Owner',
     dealObjective: 'Win tap handle space and pour pricing advantage — they\'ve got 12 taps, 4 local craft, 3 macros. What\'s the pull? What are they doing for slow-Tuesday crowds?',
     objections: [
-      'Tap handle exclusivity in their area — non-negotiable',
+      'Wants tap exclusivity or promo dollars (the rep has to say no and offer legal support)',
       'Vendor promo promises often don\'t deliver',
       'No tap fees they can\'t afford to absorb',
     ],
     winConditions: [
-      'Offer tap handle exclusivity in their territory',
-      'Present events, tap takeovers, and promo support',
+      'Win a rotating line with a clear keg-change date',
+      'Present a tap takeover plan using legal support: staff tasting, branded POS, brand-channel promotion',
       'Demonstrate the built-in fan base your brand brings',
     ],
   },
@@ -244,7 +244,7 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
     winConditions: [
       'Demonstrate brand prestige that fits their guest profile',
       'Offer POS materials and formal staff education',
-      'Confirm tap exclusivity in their territory',
+      'Confirm a committed line on the tap list and a staff training date',
     ],
   },
   'nh-district-manager': {

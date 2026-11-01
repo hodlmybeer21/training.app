@@ -5,7 +5,22 @@ import { createAdminClient as createSbAdmin } from '@/lib/server/supabase-admin'
 import { checkSeatAvailable } from '@/lib/server/seats';
 import { createInvitedUser, sendInviteEmail } from '@/lib/server/invites';
 import { VALID_ROLES, DEFAULT_SEAT_LIMIT } from '@/lib/tiers';
-import { createTeam } from '@/lib/server/teams';
+import { createTeam, teamCategory as validTeamCategory } from '@/lib/server/teams';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+/** Map of auth user id → email. profiles has no email column, so the Users table reads it from auth. */
+async function authEmails(sb: SupabaseClient): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const perPage = 1000;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await sb.auth.admin.listUsers({ page, perPage });
+    if (error) break;
+    const users = data?.users ?? [];
+    for (const u of users) if (u.email) out[u.id] = u.email;
+    if (users.length < perPage) break;
+  }
+  return out;
+}
 
 const ALLOWED_ROLES: readonly string[] = VALID_ROLES;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,8 +49,10 @@ export async function GET(req: NextRequest) {
       .select('*')
       .order('updated_at', { ascending: false });
 
+    const emails = await authEmails(sbAdmin);
     const profilesWithTeams = (allProfiles || []).map((p: any) => ({
       ...p,
+      email: p.email || emails[p.id] || null,
       teams: p.team_id ? { name: teamMap[p.team_id] || p.team_id } : null,
     }));
 
@@ -64,6 +81,8 @@ export async function POST(req: Request) {
       if (!EMAIL_RE.test(email) || !teamName) {
         return NextResponse.json({ error: 'email and teamName required' }, { status: 400 });
       }
+      // Only known categories; anything else falls back to Beer Distribution.
+      const category = validTeamCategory(teamCategory);
       let invited;
       try {
         invited = await createInvitedUser(sbAdmin, email);
@@ -74,7 +93,7 @@ export async function POST(req: Request) {
 
       const { data: team, error: teamErr } = await sbAdmin
         .from('teams')
-        .insert({ name: teamName, category: teamCategory || 'beer-distribution' })
+        .insert({ name: String(teamName).trim().slice(0, 100), category })
         .select()
         .single();
       if (teamErr) return NextResponse.json({ error: teamErr.message }, { status: 500 });
@@ -87,7 +106,7 @@ export async function POST(req: Request) {
           display_name: email.split('@')[0],
           role: 'manager',
           team_id: team.id,
-          category: teamCategory || 'beer-distribution',
+          category,
         })
         .select()
         .single();
@@ -121,6 +140,13 @@ export async function POST(req: Request) {
         );
       }
 
+      // The rep practices in their team's category (not always Beer Distribution).
+      let repCategory = validTeamCategory(null);
+      if (manager.team_id) {
+        const { data: team } = await sbAdmin.from('teams').select('category').eq('id', manager.team_id).maybeSingle();
+        repCategory = validTeamCategory((team as { category?: string } | null)?.category);
+      }
+
       let invited;
       try {
         invited = await createInvitedUser(sbAdmin, email);
@@ -138,7 +164,7 @@ export async function POST(req: Request) {
           role: 'rep',
           team_id: manager.team_id,
           manager_id: managerId,
-          category: 'beer-distribution',
+          category: repCategory,
         })
         .select()
         .single();
@@ -184,6 +210,13 @@ export async function POST(req: Request) {
         if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
+      // A user moved onto a team practices in that team's category.
+      let category: string | undefined;
+      if (teamId) {
+        const { data: t } = await sbAdmin.from('teams').select('category').eq('id', teamId).maybeSingle();
+        category = validTeamCategory((t as { category?: string } | null)?.category);
+      }
+
       let managerId: string | null = null;
       if (teamId && target.team_id !== teamId) {
         const { data: onTeam } = await sbAdmin.from('profiles').select('id, role').eq('team_id', teamId);
@@ -205,7 +238,7 @@ export async function POST(req: Request) {
 
       const { data, error } = await sbAdmin
         .from('profiles')
-        .update({ team_id: teamId, manager_id: managerId })
+        .update({ team_id: teamId, manager_id: managerId, ...(category ? { category } : {}) })
         .eq('id', userId)
         .select()
         .single();

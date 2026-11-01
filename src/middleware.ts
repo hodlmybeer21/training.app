@@ -2,7 +2,10 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { isAdminEmail } from '@/lib/admin'
 
-// middleware.ts - last updated 2026-06-03
+// Next 16 prefers proxy.ts for this file, but middleware.ts still works (with a
+// deprecation note). It stays as middleware.ts on purpose: OpenNext's Cloudflare
+// adapter fully supports this edge middleware, while its proxy.ts (Node.js
+// middleware) support is still marked experimental. Rename once that is stable.
 export async function middleware(req: NextRequest) {
   let supabaseResponse = NextResponse.next({ request: req })
 

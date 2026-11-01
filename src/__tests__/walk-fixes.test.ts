@@ -511,7 +511,7 @@ describe('checkout redirects', () => {
     const res = await POST(mk({ priceId: 'team', successUrl: 'https://evil.example/thanks', cancelUrl: 'https://evil.example/back' }));
     expect(res.status).toBe(200);
     expect(stripeCreate[0]).toMatchObject({
-      success_url: 'https://training.example.com/dashboard?upgrade=success',
+      success_url: 'https://training.example.com/welcome?checkout=success',
       cancel_url: 'https://training.example.com/pricing',
     });
     await POST(mk({ priceId: 'small', successUrl: 'https://training.example.com/dashboard?upgrade=success', cancelUrl: 'https://training.example.com/pricing' }));
@@ -524,5 +524,65 @@ describe('pricing FAQ', () => {
   it('says team-plan managers add reps themselves', async () => {
     const src = (await import('node:fs')).readFileSync('src/app/pricing/page.tsx', 'utf8');
     expect(src).toContain('Manager → Members');
+  });
+});
+
+// ── Walk follow-ups: admin emails, team category, goal delete, forgot password ─
+describe('walk follow-ups', () => {
+  it('admin user list shows emails from auth (profiles has no email column)', async () => {
+    auth.users.push({ id: REP, email: 'rep.one@example.com' });
+    as('admin', 'boss@example.com');
+    const { GET } = await import('@/app/api/admin/route');
+    const list = await (await GET(new Request('http://x/api/admin') as any)).json();
+    expect(list.profiles.find((p: Row) => p.id === REP).email).toBe('rep.one@example.com');
+  });
+
+  it('admin-created managers get a valid category and reps inherit their team’s', async () => {
+    as('admin', 'boss@example.com');
+    const { POST } = await import('@/app/api/admin/route');
+    const bad = await (await POST(post('/api/admin', { action: 'create-manager', email: 'm1@example.com', teamName: 'A', teamCategory: 'not-a-category' }))).json();
+    expect(db.teams.find((t) => t.id === bad.team.id)!.category).toBe('beer-distribution');
+    const good = await (await POST(post('/api/admin', { action: 'create-manager', email: 'm2@example.com', teamName: 'B', teamCategory: 'retail' }))).json();
+    expect(db.teams.find((t) => t.id === good.team.id)!.category).toBe('retail');
+    const rep = await (await POST(post('/api/admin', { action: 'create-rep', email: 'r9@example.com', managerId: good.user.id }))).json();
+    expect(db.profiles.find((p) => p.id === rep.user.id)!.category).toBe('retail');
+    // moving a user onto a team picks up that team's category
+    db.profiles.push({ id: REP2, role: 'rep', team_id: null, category: 'beer-distribution' });
+    expect((await POST(post('/api/admin', { action: 'assign-team', userId: REP2, teamId: good.team.id }))).status).toBe(200);
+    expect(db.profiles.find((p) => p.id === REP2)!.category).toBe('retail');
+  });
+
+  it('a manager cannot deactivate another team’s goal (404, goal untouched)', async () => {
+    db.team_goals.push({ id: 'g2', team_id: T2, active: true, goal_text: 'Other team goal' });
+    as(MGR);
+    const { DELETE } = await import('@/app/api/goals/[id]/route');
+    const res = await DELETE(new Request('http://x') as any, { params: Promise.resolve({ id: 'g2' }) });
+    expect(res.status).toBe(404);
+    expect(db.team_goals.find((g) => g.id === 'g2')!.active).toBe(true);
+    const own = await DELETE(new Request('http://x') as any, { params: Promise.resolve({ id: 'g1' }) });
+    expect(own.status).toBe(200);
+    expect(db.team_goals.find((g) => g.id === 'g1')!.active).toBe(false);
+  });
+
+  it('forgot password sends a recovery link and answers the same for any email', async () => {
+    const { POST } = await import('@/app/api/auth/forgot-password/route');
+    const mk = (email: string) => new NextRequest('https://training.example.com/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }), headers: { 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.9' } });
+    const a = await POST(mk('someone@example.com'));
+    expect(a.status).toBe(200);
+    expect(auth.generateLink.at(-1)).toMatchObject({ type: 'recovery', email: 'someone@example.com' });
+    expect((await POST(mk('not an email'))).status).toBe(400);
+    const { buildSetPasswordLink } = await import('@/lib/server/invites');
+    expect(buildSetPasswordLink('H', 'recovery')).toBe('https://training.example.com/set-password?token_hash=H&type=recovery');
+  });
+
+  it('checkout shows the same seat wording as the pricing page', async () => {
+    const { POST } = await import('@/app/api/stripe/checkout/route');
+    const mk = (body: Row) => new NextRequest('https://training.example.com/api/stripe/checkout', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
+    await POST(mk({ priceId: 'small' }));
+    expect(stripeCreate.at(-1).custom_text.submit.message).toContain('Up to 5 seats (you + 4 reps)');
+    const src = (await import('node:fs')).readFileSync('src/app/pricing/page.tsx', 'utf8');
+    expect(src).toContain('Up to 5 seats (you + 4 reps)');
+    expect(src).toContain('Up to 15 seats (you + 14 reps)');
+    expect(src).toContain('/welcome?checkout=success');
   });
 });

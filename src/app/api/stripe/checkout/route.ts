@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { PLANS, isPlanKey, priceIdForPlan } from '@/lib/tiers';
+import { PLANS, TIER_DISPLAY, isPlanKey, priceIdForPlan, seatSummary } from '@/lib/tiers';
 import { safeRedirectUrl } from '@/lib/server/redirects';
 
 let _stripe: Stripe | null = null;
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     // Stripe sends the buyer back to these URLs, so only our own origins are allowed.
     // Anything else (another site, javascript:, a malformed URL) falls back to the default.
     const allowed = [req.nextUrl.origin, baseUrl];
-    const successUrl = safeRedirectUrl(body.successUrl, allowed, `${baseUrl}/dashboard?upgrade=success`);
+    const successUrl = safeRedirectUrl(body.successUrl, allowed, `${baseUrl}/welcome?checkout=success`);
     const cancelUrl = safeRedirectUrl(body.cancelUrl, allowed, `${baseUrl}/pricing`);
 
     const session = await getStripe().checkout.sessions.create({
@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
       metadata: { plan, tier },
       subscription_data: { metadata: { plan, tier } },
       branding_settings: CHECKOUT_BRANDING,
+      // Same seat wording as the pricing page (seats include the manager).
+      custom_text: { submit: { message: `${TIER_DISPLAY[tier]}: ${seatSummary(tier)}.${typeof email === 'string' && email ? '' : ' New to TrainField? After payment we email you a link to set your password.'}` } },
     });
 
     return NextResponse.json({ url: session.url });
