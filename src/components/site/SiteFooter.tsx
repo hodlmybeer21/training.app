@@ -5,7 +5,7 @@ export default function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer-brand">
         <div className="site-footer-logo"><LogoMark size={22} /> TrainField AI</div>
-        <p>Voice roleplay practice for beer distribution sales reps. Personas are fictional and not affiliated with any distributor, retailer or brewery.</p>
+        <p>Voice roleplay practice for sales and team conversations: beer distribution, real estate, insurance, retail and managers. Personas are fictional and not affiliated with any real company.</p>
       </div>
       <nav className="site-footer-links" aria-label="Footer">
         <a href="/#demo">Free demo</a>

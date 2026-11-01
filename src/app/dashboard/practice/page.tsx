@@ -8,6 +8,7 @@ import { CATEGORIES } from '@/lib/categories';
 import { getPersonasForCategory, getAllPersonaIds, PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 import { getCategoryById } from '@/lib/categories';
 import { openingLineFor } from '@/lib/roleplay';
+import { BEER, incentivesAllowed, normalizeCategory, profileFor, skillLabels, stageObjectiveFor } from '@/lib/industry';
 import { SAMPLE_INCENTIVES, getSampleIncentive, normalizeIncentiveGoal } from '@/lib/incentives';
 import { IncentiveBrief, IncentiveGoalCard, SampleBadge } from '@/components/Incentives';
 
@@ -147,9 +148,9 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
     prospectTitle: 'Hostile Prospect',
     dealObjective: 'Stay composed under pressure — they enjoy watching reps squirm. Don\'t cave to ultimatums. Find the real underlying objection and redirect the conversation.',
     objections: [
-      '"40% off and free delivery or forget it" ultimatums',
+      '"40% off and free setup or forget it" ultimatums',
       'Won\'t cave to pressure tactics — will walk away',
-      'Distracts with "three other distributors waiting"',
+      'Distracts with "three other vendors waiting"',
     ],
     winConditions: [
       'Stay calm under aggressive pressure',
@@ -553,6 +554,51 @@ const SCENARIO_BRIEF: Record<string, { prospectName: string; prospectTitle: stri
       'Keep the deal together while addressing real issues',
     ],
   },
+  're-listing-commission': {
+    prospectName: 'Homeowner',
+    prospectTitle: 'Listing Appointment: Commission Pushback',
+    dealObjective: 'Win the listing without caving on commission or trashing competitors — show exactly what the homeowner gets for the fee and how your pricing and marketing protect their net proceeds.',
+    objections: [
+      '"Another agent will list it for a lot less"',
+      '"Commission is the easiest place to save money"',
+      'Interviewing other agents this week',
+    ],
+    winConditions: [
+      'Ask about their goals, timeline and what matters most before defending the fee',
+      'Explain your services, pricing method and marketing plan specifically',
+      'Ask for the listing agreement or a firm decision date',
+    ],
+  },
+  're-expired-fsbo': {
+    prospectName: 'Homeowner',
+    prospectTitle: 'Expired Listing, Thinking FSBO',
+    dealObjective: 'Earn a short meeting with a burned-out seller whose listing just expired — ask what happened instead of pitching, and never blame them or their previous agent.',
+    objections: [
+      '"You\'re the fifth agent to call today"',
+      '"I\'ll just sell it myself and save the commission"',
+      'Last agent barely communicated',
+    ],
+    winConditions: [
+      'Ask what happened and listen before offering anything',
+      'Stay respectful about the seller and the previous agent',
+      'Offer a specific, low-pressure next step (a short meeting to review why it did not sell)',
+    ],
+  },
+  're-buyer-consultation': {
+    prospectName: 'Buyer',
+    prospectTitle: 'Buyer Consultation',
+    dealObjective: 'Run a first buyer consultation: learn their goals, timeline and finances, explain the written buyer agreement and how you are paid in plain terms, and set next steps (including talking to a lender).',
+    objections: [
+      '"What exactly am I signing?"',
+      '"How do you get paid, and can I change agents?"',
+      'Wants to tour this weekend without a lender conversation',
+    ],
+    winConditions: [
+      'Ask about goals, timeline and budget before talking about houses',
+      'Explain the agreement and your compensation plainly — no pressure',
+      'Agree concrete next steps: lender conversation, signed agreement, first tour',
+    ],
+  },
   're-closing-delay': {
     prospectName: 'Agent Tom',
     prospectTitle: 'Closing Day Disaster',
@@ -737,17 +783,23 @@ function hasSpeechRecognition(): boolean {
 
 export default function PracticePage() {
   const [phase, setPhase] = useState<'setup' | 'call' | 'review'>('setup');
-  const [selectedCategory, setSelectedCategory] = useState<string>('beer-distribution');
+  // Opens on beer until the profile loads, then switches to the team's category
+  // (unless a persona was picked from the URL).
+  const [selectedCategory, setSelectedCategory] = useState<string>(BEER);
+  const [teamCategory, setTeamCategory] = useState<string>(BEER);
   const [selectedPersona, setSelectedPersona] = useState<Persona>(() => {
-    // Default to first beer-distribution persona on load
-    const cats = getPersonasForCategory('beer-distribution');
+    const cats = getPersonasForCategory(BEER);
     return cats[0] || ALL_PERSONAS[0];
   });
   const [dealStage, setDealStage] = useState<'initial-pitch'|'proposal'|'negotiation'|'renewal'>('initial-pitch');
   const [difficulty, setDifficulty] = useState<'easy'|'challenging'|'intense'>('challenging');
   // Optional sample incentive program the rep pitches toward (fictional, for demos).
   const [incentiveId, setIncentiveId] = useState('');
-  const incentive = getSampleIncentive(incentiveId);
+  // Industry framing for this call (scorecard labels, stage notes); custom team
+  // personas use the team's category. Sample incentives are beer-only.
+  const industry = profileFor(selectedPersona.id, teamCategory);
+  const showIncentives = incentivesAllowed(industry);
+  const incentive = showIncentives ? getSampleIncentive(incentiveId) : null;
   const [messages, setMessages] = useState<Message[]>([]);
   const [callSeconds, setCallSeconds] = useState(0);
   const [status, setStatus] = useState<'idle' | 'speaking' | 'listening' | 'thinking'>('idle');
@@ -833,7 +885,19 @@ export default function PracticePage() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
     fetch('/api/profile')
       .then(r => r.json())
-      .then(d => { if (d.profile) setProfile(d.profile); setNameInput(d.profile?.display_name || ''); })
+      .then(d => {
+        if (d.profile) setProfile(d.profile);
+        setNameInput(d.profile?.display_name || '');
+        // Practice opens on the team's category, unless the URL picked a persona or incentive.
+        const cat = normalizeCategory(d.category);
+        setTeamCategory(cat);
+        const params = new URLSearchParams(window.location.search);
+        if (!params.get('persona') && !params.get('incentive')) {
+          const personas = getPersonasForCategory(cat);
+          setSelectedCategory(cat);
+          if (personas.length > 0) setSelectedPersona(personas[0]);
+        }
+      })
       .catch(() => {});
     // Goal context for the AI is added on the server, so it isn't fetched here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -865,17 +929,11 @@ export default function PracticePage() {
 
   const getBrief = () => {
     const base = (SCENARIO_BRIEF as any)[selectedPersona.id] || SCENARIO_BRIEF.default;
-    const stageObjectives: Record<string, string> = {
-      'initial-pitch': "Capture attention and establish credibility — qualify the prospect's needs before presenting anything. Focus on discovery.",
-      'proposal': "Address the proposal evaluation — help them see clear value vs. cost. Handle pricing objections with ROI framing.",
-      'negotiation': "Navigate concessions smartly — trade value for what matters, don't give things away free. Find the actual objection behind the pressure.",
-      'renewal': "Understand why they might leave and make a compelling case to stay — acknowledge real issues and propose a path forward.",
-    };
-    return { ...base, dealObjective: stageObjectives[dealStage] || base.dealObjective };
+    return { ...base, dealObjective: stageObjectiveFor(industry, dealStage) || base?.dealObjective };
   };
 
   // Same opening the server expects as the first buyer line.
-  const getOpeningLine = () => openingLineFor(selectedPersona.openingLine, dealStage);
+  const getOpeningLine = () => openingLineFor(selectedPersona.openingLine, dealStage, industry);
 
   const brief = getBrief();
 
@@ -1077,6 +1135,7 @@ export default function PracticePage() {
                       aria-pressed={selectedCategory === cat.id}
                       onClick={() => {
                         setSelectedCategory(cat.id);
+                        if (cat.id !== BEER) setIncentiveId('');
                         const personas = getPersonasForCategory(cat.id);
                         if (personas.length > 0) setSelectedPersona(personas[0]);
                       }}
@@ -1107,7 +1166,7 @@ export default function PracticePage() {
               />
               <Select label="Deal Stage" value={dealStage} onChange={v => setDealStage(v as any)} options={(getCategoryById(selectedCategory)?.dealStages || CATEGORIES[0].dealStages).map(s => ({ value: s.id, label: s.label }))} />
               <Select label="Difficulty" value={difficulty} onChange={v => setDifficulty(v as any)} options={[{ value: 'easy', label: 'Easy' }, { value: 'challenging', label: 'Challenging' }, { value: 'intense', label: 'Intense' }]} />
-              <Select
+              {showIncentives && <Select
                 label="Incentive Goal"
                 value={incentiveId}
                 onChange={v => {
@@ -1119,7 +1178,7 @@ export default function PracticePage() {
                   { value: '', label: 'None (general call)' },
                   ...SAMPLE_INCENTIVES.map(i => ({ value: i.id, label: `${i.emoji} ${i.name} (sample)` })),
                 ]}
-              />
+              />}
               {incentive && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '-8px 0 12px', fontSize: 11, color: '#6b7280' }}>
                   <SampleBadge /> Fictional brand and payout for practice.
@@ -1365,13 +1424,12 @@ export default function PracticePage() {
                     </div>
                   </div>
                   {/* Skill breakdown */}
-                  {([
-                    { name: 'Discovery', value: reviewData?.discovery, color: '#60a5fa' },
-                    { name: 'Objection Handling', value: reviewData?.objectionHandling, color: '#4ade80' },
-                    { name: 'Value Articulation', value: reviewData?.valueArticulation, color: '#D4860A' },
-                    { name: 'Confidence & Pacing', value: reviewData?.confidencePacing, color: '#9DC44B' },
-                    { name: 'Closing Technique', value: reviewData?.closingTechnique, color: '#ef4444' },
-                  ] as any).map(skill => (
+                  {/* Labels follow the industry: a manager/HR call shows Listening, Empathy, Clarity... */}
+                  {(skillLabels(industry).map((s, i) => ({
+                    name: s.label,
+                    value: (reviewData as Record<string, unknown> | null | undefined)?.[s.key],
+                    color: ['#60a5fa', '#4ade80', '#D4860A', '#9DC44B', '#ef4444'][i],
+                  }))).map(skill => (
                     <div key={skill.name} style={{ marginBottom: 12 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                         <span style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>{skill.name}</span>

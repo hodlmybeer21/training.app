@@ -38,7 +38,7 @@ const TIERS: Tier[] = [
     period: '/ month',
     description: 'For a rep who wants to practice before the calls that matter.',
     features: [
-      'Full scenario library across 5 industries',
+      'Full scenario library across 5 industries: beer distribution, real estate, insurance, retail, managers & HR',
       'Pick the deal stage and difficulty',
       'Scored debrief after every call',
       'Saved history and transcripts',

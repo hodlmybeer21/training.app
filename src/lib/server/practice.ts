@@ -4,6 +4,7 @@ import { buildScenarioPrompt, isDealStage, isDifficulty, openingLineFor, type De
 import { getSampleIncentive, incentiveBuyerPrompt, type SampleIncentive } from '@/lib/incentives';
 import { buildGoalContext } from '@/lib/goal-context';
 import type { TurnMessage, TurnScope } from '@/lib/server/turn-token';
+import { incentivesAllowed, normalizeCategory, profileFor, type CategoryId, type IndustryProfile } from '@/lib/industry';
 
 // Signed-in practice scenarios are built on the server from ids only: the client
 // says which persona, deal stage, difficulty and sample incentive, and the server
@@ -53,6 +54,29 @@ export async function resolvePracticePersona(
   return { id: row.id, name: row.name, description: row.description || '', systemPrompt: row.system_prompt, openingLine: row.opening_line, custom: true };
 }
 
+/**
+ * The caller's practice category: their own override, else their team's category,
+ * else beer (teams created before categories existed).
+ */
+export async function loadTeamCategory(sb: SupabaseClient, userId: string, teamId: string | null): Promise<CategoryId> {
+  const { data: prof } = await sb.from('profiles').select('category').eq('id', userId).maybeSingle();
+  const own = (prof as { category?: string | null } | null)?.category;
+  if (own) return normalizeCategory(own);
+  if (!teamId) return normalizeCategory(null);
+  const { data: team } = await sb.from('teams').select('category').eq('id', teamId).maybeSingle();
+  return normalizeCategory((team as { category?: string | null } | null)?.category);
+}
+
+/** Industry framing for this call: the built-in persona's own, or the team's for custom personas. */
+export function practiceProfile(persona: PracticePersona, teamCategory: CategoryId): IndustryProfile {
+  return persona.custom ? normalizeCategory(teamCategory) : profileFor(persona.id, teamCategory);
+}
+
+/** Sample incentives are beer programs; asking for one on another industry's call is an error. */
+export function incentiveError(opts: PracticeOptions, profile: IndustryProfile): string | null {
+  return opts.incentive && !incentivesAllowed(profile) ? 'Sample incentives are only for beer distribution scenarios' : null;
+}
+
 export async function loadGoalContext(sb: SupabaseClient, teamId: string | null): Promise<string> {
   if (!teamId) return '';
   const { data } = await sb
@@ -88,13 +112,14 @@ export function practiceScope(userId: string, persona: PracticePersona, opts: Pr
   return { userId, personaId: persona.id, dealStage: opts.dealStage, difficulty: opts.difficulty, incentiveId: opts.incentive?.id ?? '' };
 }
 
-export function buildPracticeSystemPrompt(persona: PracticePersona, opts: PracticeOptions, goalContext: string): string {
-  const base = buildScenarioPrompt(persona.systemPrompt, opts.dealStage, opts.difficulty, opts.incentive ? incentiveBuyerPrompt(opts.incentive) : '');
+export function buildPracticeSystemPrompt(persona: PracticePersona, opts: PracticeOptions, goalContext: string, profile: IndustryProfile = 'beer-distribution'): string {
+  const incentive = incentivesAllowed(profile) ? opts.incentive : null;
+  const base = buildScenarioPrompt(persona.systemPrompt, opts.dealStage, opts.difficulty, incentive ? incentiveBuyerPrompt(incentive) : '', profile);
   return goalContext ? `${base}\n\n${goalContext}` : base;
 }
 
-export function practiceOpeningLine(persona: PracticePersona, opts: PracticeOptions): string {
-  return openingLineFor(persona.openingLine, opts.dealStage);
+export function practiceOpeningLine(persona: PracticePersona, opts: PracticeOptions, profile: IndustryProfile = 'beer-distribution'): string {
+  return openingLineFor(persona.openingLine, opts.dealStage, profile);
 }
 
 /** Only user/assistant turns, as plain strings, within size limits. Null when malformed. */

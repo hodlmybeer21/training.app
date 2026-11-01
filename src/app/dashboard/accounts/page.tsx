@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import DashboardNav from '@/components/DashboardNav';
 import { PERSONA_BY_CATEGORY } from '@/lib/personas/index';
 import { CATEGORIES } from '@/lib/categories';
+import { getPersonasForCategory } from '@/lib/personas/index';
+import { BEER, normalizeCategory } from '@/lib/industry';
 
 type RecentSession = { id: string; overall_score: number | null; created_at: string; scenario_name: string | null };
 type Account = {
@@ -21,14 +23,15 @@ type PersonaOption = { id: string; name: string; emoji: string; group: string };
 type FormState = { name: string; address: string; city: string; persona_id: string; notes: string };
 
 const NOTES_MAX = 1000;
-const DEFAULT_PERSONA = 'nh-liquor-store-owner';
-const emptyForm = (): FormState => ({ name: '', address: '', city: '', persona_id: DEFAULT_PERSONA, notes: '' });
+// The default persona for a new account is the first one in the team's category.
+const defaultPersonaFor = (category: string) => (getPersonasForCategory(normalizeCategory(category))[0]?.id as string) || 'nh-liquor-store-owner';
+const emptyForm = (category: string = BEER): FormState => ({ name: '', address: '', city: '', persona_id: defaultPersonaFor(category), notes: '' });
 
-// Built-in personas grouped by vertical, beer distribution (store owners) first.
-const BUILT_IN: PersonaOption[] = (() => {
+// Built-in personas grouped by vertical, the team's category first.
+const builtInFor = (first: string): PersonaOption[] => {
   const seen = new Set<string>();
   const out: PersonaOption[] = [];
-  const order = ['beer-distribution', ...Object.keys(PERSONA_BY_CATEGORY).filter(c => c !== 'beer-distribution')];
+  const order = [first, ...Object.keys(PERSONA_BY_CATEGORY).filter(c => c !== first)];
   for (const cat of order) {
     const group = CATEGORIES.find(c => c.id === cat)?.name || cat;
     for (const p of PERSONA_BY_CATEGORY[cat] || []) {
@@ -38,7 +41,7 @@ const BUILT_IN: PersonaOption[] = (() => {
     }
   }
   return out;
-})();
+};
 
 function scoreColor(score: number | null) {
   if (score === null) return '#6b7280';
@@ -54,7 +57,8 @@ export default function AccountsPage() {
   const [loadError, setLoadError] = useState(false);
   const [teamPersonas, setTeamPersonas] = useState<PersonaOption[]>([]);
   const [editing, setEditing] = useState<string | 'new' | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [category, setCategory] = useState<string>(BEER);
+  const [form, setForm] = useState<FormState>(() => emptyForm());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [savedMsg, setSavedMsg] = useState('');
@@ -69,6 +73,10 @@ export default function AccountsPage() {
 
   useEffect(() => {
     fetchAccounts();
+    fetch('/api/profile')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.category) setCategory(normalizeCategory(d.category)); })
+      .catch(() => {});
     fetch('/api/personas')
       .then(r => (r.ok ? r.json() : { personas: [] }))
       .then(d => {
@@ -83,7 +91,7 @@ export default function AccountsPage() {
     if (editing) nameRef.current?.focus();
   }, [editing]);
 
-  const allPersonas = useMemo(() => [...teamPersonas, ...BUILT_IN], [teamPersonas]);
+  const allPersonas = useMemo(() => [...teamPersonas, ...builtInFor(category)], [teamPersonas, category]);
   const personaById = (id: string) => allPersonas.find(p => p.id === id);
   const groups = useMemo(() => {
     const m = new Map<string, PersonaOption[]>();
@@ -91,7 +99,7 @@ export default function AccountsPage() {
     return [...m.entries()];
   }, [allPersonas]);
 
-  const startNew = () => { setForm(emptyForm()); setFormError(''); setSavedMsg(''); setEditing('new'); };
+  const startNew = () => { setForm(emptyForm(category)); setFormError(''); setSavedMsg(''); setEditing('new'); };
   const startEdit = (a: Account) => {
     setForm({ name: a.name, address: a.address || '', city: a.city || '', persona_id: a.persona_id, notes: a.notes || '' });
     setFormError('');
@@ -102,7 +110,7 @@ export default function AccountsPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { setFormError('Store or account name is required.'); return; }
+    if (!form.name.trim()) { setFormError('Account or client name is required.'); return; }
     setSaving(true);
     setFormError('');
     const isNew = editing === 'new';
@@ -130,8 +138,8 @@ export default function AccountsPage() {
       <h2 id="account-form-title" style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 16 }}>{editing === 'new' ? 'Add an account' : 'Edit account'}</h2>
       <div className="accounts-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div style={{ gridColumn: '1 / -1' }}>
-          <label htmlFor="acct-name" style={labelStyle}>Store or account name *</label>
-          <input id="acct-name" ref={nameRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required maxLength={120} placeholder="e.g. Main Street Market" style={inputStyle} />
+          <label htmlFor="acct-name" style={labelStyle}>Account or client name *</label>
+          <input id="acct-name" ref={nameRef} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required maxLength={120} placeholder="e.g. Main Street Market or 14 Elm St listing" style={inputStyle} />
         </div>
         <div>
           <label htmlFor="acct-address" style={labelStyle}>Address (optional)</label>
@@ -142,7 +150,7 @@ export default function AccountsPage() {
           <input id="acct-city" value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} maxLength={80} placeholder="Concord" autoComplete="off" style={inputStyle} />
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
-          <label htmlFor="acct-persona" style={labelStyle}>Store-owner persona *</label>
+          <label htmlFor="acct-persona" style={labelStyle}>Practice persona *</label>
           <select id="acct-persona" value={form.persona_id} onChange={e => setForm(f => ({ ...f, persona_id: e.target.value }))} aria-describedby="acct-persona-help" style={inputStyle}>
             {!personaById(form.persona_id) && <option value={form.persona_id}>Persona no longer available — pick another</option>}
             {groups.map(([group, list]) => (
@@ -151,14 +159,14 @@ export default function AccountsPage() {
               </optgroup>
             ))}
           </select>
-          <p id="acct-persona-help" style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Pick the practice persona that plays most like this owner. It&apos;s an AI character, not the real person.</p>
+          <p id="acct-persona-help" style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Pick the practice persona that plays most like the person you&apos;ll talk to. It&apos;s an AI character, not the real person.</p>
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <label htmlFor="acct-notes" style={labelStyle}>Your notes (optional)</label>
           <p id="acct-notes-warning" role="note" style={{ fontSize: 12, color: '#92400e', background: '#fff7e6', border: '1px solid rgba(212,134,10,0.35)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
             <span aria-hidden="true">⚠️ </span>Don&apos;t record or paste conversations; notes only.
           </p>
-          <textarea id="acct-notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value.slice(0, NOTES_MAX) }))} maxLength={NOTES_MAX} rows={4} aria-describedby="acct-notes-warning acct-notes-count" placeholder="e.g. Owner decides on Tuesdays. Wants a tasting before adding SKUs." style={{ ...inputStyle, resize: 'vertical' }} />
+          <textarea id="acct-notes" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value.slice(0, NOTES_MAX) }))} maxLength={NOTES_MAX} rows={4} aria-describedby="acct-notes-warning acct-notes-count" placeholder="e.g. Decides on Tuesdays. Wants to see numbers before committing." style={{ ...inputStyle, resize: 'vertical' }} />
           <div id="acct-notes-count" style={{ fontSize: 11, color: '#6b7280', textAlign: 'right', marginTop: 4 }}>{form.notes.length}/{NOTES_MAX}</div>
         </div>
       </div>
@@ -192,7 +200,7 @@ export default function AccountsPage() {
 
         <div className="accounts-body" style={{ padding: 28, display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1100 }}>
           <p style={{ fontSize: 13, color: '#4b5563', lineHeight: 1.5, maxWidth: 720 }}>
-            Keep the stores you call on, give each one the practice persona that plays most like its owner, and rehearse before the visit. Scores from those runs show on the account.
+            Keep the accounts or clients you work with, give each one the practice persona that plays most like the person you&apos;ll talk to, and rehearse before the conversation. Scores from those runs show on the account.
           </p>
           {savedMsg && <div role="status" style={{ fontSize: 13, color: '#15803d', fontWeight: 600 }}>{savedMsg}</div>}
 
@@ -207,7 +215,7 @@ export default function AccountsPage() {
             </div>
           ) : accounts.length === 0 && editing !== 'new' ? (
             <div className="dash-state">
-              No accounts yet. Add the stores you call on and pick a store-owner persona for each, so you can practice the conversation before you walk in.<br />
+              No accounts yet. Add the accounts or clients you work with and pick a practice persona for each, so you can rehearse the conversation before it happens.<br />
               <button type="button" className="dash-retry" onClick={startNew} style={{ marginTop: 12 }}>+ Add your first account</button>
             </div>
           ) : (
@@ -245,8 +253,8 @@ export default function AccountsPage() {
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 'auto' }}>
-                      <a href={`/dashboard/practice?persona=${encodeURIComponent(a.persona_id)}&account=${a.id}`} aria-label={`Practice against the owner of ${a.name}`} style={{ background: '#D4860A', color: '#fff', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                        <span aria-hidden="true">🎤 </span>Practice against this owner
+                      <a href={`/dashboard/practice?persona=${encodeURIComponent(a.persona_id)}&account=${a.id}`} aria-label={`Practice the conversation for ${a.name}`} style={{ background: '#D4860A', color: '#fff', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                        <span aria-hidden="true">🎤 </span>Practice this conversation
                       </a>
                       <button type="button" onClick={() => startEdit(a)} aria-label={`Edit ${a.name}`} disabled={editing !== null} style={{ background: '#fff', color: '#374151', border: '1.5px solid #e5e7eb', borderRadius: 8, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: editing !== null ? 'not-allowed' : 'pointer' }}>
                         Edit

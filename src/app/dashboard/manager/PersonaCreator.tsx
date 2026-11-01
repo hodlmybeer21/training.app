@@ -164,7 +164,7 @@ export default function PersonaCreator() {
             {/* Name */}
             <div>
               <label className="pc-label" htmlFor="pc-name" style={{ display: 'block' }}>Name *</label>
-              <input id="pc-name" className="pc-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Skeptic Grocery Buyer" required />
+              <input id="pc-name" className="pc-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Skeptical First-Time Client" required />
             </div>
 
             {/* Description */}
@@ -201,7 +201,7 @@ export default function PersonaCreator() {
             <div className="pc-full">
               <label className="pc-label" htmlFor="pc-instructions" style={{ display: 'block' }}>Character Instructions *</label>
               <textarea id="pc-instructions" className="pc-textarea" value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)}
-                placeholder={'You are a skeptical grocery chain buyer. You push back on pricing, question value, and need concrete proof. Keep responses short (1-3 sentences).'}
+                placeholder={'You are a skeptical customer or client meeting the trainee for the first time. You push back on price, question value, and need concrete proof. Keep responses short (1-3 sentences).'}
                 style={{ minHeight: 72 }} required />
             </div>
 
@@ -216,7 +216,7 @@ export default function PersonaCreator() {
             <div className="pc-full">
               <label className="pc-label" htmlFor="pc-hints" style={{ display: 'block' }}>Scoring Hints</label>
               <textarea id="pc-hints" className="pc-textarea" value={scoringHints} onChange={e => setScoringHints(e.target.value)}
-                placeholder={'What should the AI look for when scoring reps on this persona?\nE.g. "Look for: asks about shelf space before pitching"'}>
+                placeholder={'What should the AI look for when scoring reps on this persona?\nE.g. "Look for: asks about their goals before pitching"'}>
               </textarea>
             </div>
           </div>

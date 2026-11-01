@@ -29,7 +29,7 @@ export function parseAccountInput(body: Record<string, unknown>, partial: boolea
     out.name = body.name.trim();
   }
   if (!partial || 'persona_id' in body) {
-    if (typeof body.persona_id !== 'string' || !body.persona_id.trim()) return { error: 'Pick a store-owner persona' };
+    if (typeof body.persona_id !== 'string' || !body.persona_id.trim()) return { error: 'Pick a practice persona' };
     out.persona_id = body.persona_id.trim();
   }
   for (const [key, max, label] of [['address', ACCOUNT_LIMITS.address, 'Address'], ['city', ACCOUNT_LIMITS.city, 'City'], ['notes', ACCOUNT_LIMITS.notes, 'Notes']] as const) {

@@ -19,13 +19,18 @@ export async function GET(req: NextRequest) {
     // isAdmin is computed on the server so no admin email has to ship to the browser.
     // Admin = email listed in ADMIN_EMAILS.
     const isAdmin = isAdminEmail(user.email);
-    // Best effort: team name for the settings page (null if not readable).
+    // Best effort: team name for the settings page and the practice category (the
+    // user's own override, else the team's; null if not readable, beer on the client).
     let teamName: string | null = null;
+    let category: string | null = null;
+    const { data: own } = await supabase.from('profiles').select('category').eq('id', user.id).maybeSingle();
+    if (own?.category) category = own.category;
     if (profile.team_id) {
-      const { data: team } = await supabase.from('teams').select('name').eq('id', profile.team_id).maybeSingle();
+      const { data: team } = await supabase.from('teams').select('name, category').eq('id', profile.team_id).maybeSingle();
       teamName = team?.name ?? null;
+      category = category ?? team?.category ?? null;
     }
-    return NextResponse.json({ profile, isAdmin, teamName });
+    return NextResponse.json({ profile, isAdmin, teamName, category });
   } catch (e: unknown) {
     console.error('profile route error', e instanceof Error ? e.message : e);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
